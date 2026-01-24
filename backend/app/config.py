@@ -41,6 +41,7 @@ class Config:
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
+    JWT_COOKIE_CSRF_PROTECT = False  # Disable CSRF protection since we're using headers, not cookies
     
     # WebAuthn
     RP_NAME = os.getenv('RP_NAME', 'FaceTrust')

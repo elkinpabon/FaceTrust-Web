@@ -16,7 +16,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register-begin', methods=['POST'])
-@limiter.limit("3 per 15 minutes")
+# @limiter.limit("3 per 15 minutes")  # Desactivado para desarrollo
 def register_begin():
     """
     Initiate WebAuthn registration
@@ -42,15 +42,15 @@ def register_begin():
     role = data.get('role', 'client')
     
     try:
-        # Check rate limit
-        is_allowed, retry_after = RateLimitService.check_register_rate_limit(email)
-        
-        if not is_allowed:
-            return jsonify({
-                'error': 'Too many registration attempts',
-                'code': 'rate_limit_exceeded',
-                'retry_after': retry_after
-            }), 429
+        # Check rate limit (desactivado para desarrollo)
+        # is_allowed, retry_after = RateLimitService.check_register_rate_limit(email)
+        # 
+        # if not is_allowed:
+        #     return jsonify({
+        #         'error': 'Too many registration attempts',
+        #         'code': 'rate_limit_exceeded',
+        #         'retry_after': retry_after
+        #     }), 429
         
         # Create user
         user = UserService.create_user(email, name, role)
@@ -73,6 +73,9 @@ def register_begin():
         }), 400
     except Exception as e:
         # Log error
+        print(f"[ERROR] Exception in register-begin: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         AuditService.log_registration(email, success=False, reason='internal_error')
         
         return jsonify({
@@ -112,12 +115,21 @@ def register_complete():
         user = UserService.get_user(user_id)
         
         # Create JWT tokens
-        tokens = AuthService.create_tokens(user)
+        tokens_response = AuthService.create_tokens(user)
         
         # Log credential addition
         AuditService.log_credential_added(user_id, result['credential_id'])
         
-        return jsonify(tokens), 200
+        # Restructure response for frontend compatibility
+        return jsonify({
+            'user': tokens_response['user'],
+            'tokens': {
+                'access_token': tokens_response['access_token'],
+                'refresh_token': tokens_response['refresh_token'],
+                'token_type': tokens_response['token_type'],
+                'expires_in': tokens_response['expires_in']
+            }
+        }), 200
         
     except ValueError as e:
         return jsonify({
@@ -165,7 +177,9 @@ def login_begin():
             }), 429
         
         # Generate WebAuthn authentication options
+        print(f"[DEBUG] Generating authentication challenge for {email}")
         options = WebAuthnService.generate_authentication_challenge(email)
+        print(f"[DEBUG] Authentication options generated successfully")
         
         # Log login attempt
         AuditService.log_login_attempt(email, success=True)
@@ -174,6 +188,7 @@ def login_begin():
         
     except ValueError as e:
         # Log failed login attempt
+        print(f"[ERROR] ValueError in login-begin: {str(e)}")
         AuditService.log_login_attempt(email, success=False, reason=str(e))
         
         return jsonify({
@@ -221,9 +236,18 @@ def login_complete():
         user = result['user']
         
         # Create JWT tokens
-        tokens = AuthService.create_tokens(UserService.get_user(user['id']))
+        tokens_response = AuthService.create_tokens(UserService.get_user(user['id']))
         
-        return jsonify(tokens), 200
+        # Restructure response for frontend compatibility
+        return jsonify({
+            'user': tokens_response['user'],
+            'tokens': {
+                'access_token': tokens_response['access_token'],
+                'refresh_token': tokens_response['refresh_token'],
+                'token_type': tokens_response['token_type'],
+                'expires_in': tokens_response['expires_in']
+            }
+        }), 200
         
     except ValueError as e:
         # Log failed verification
@@ -268,7 +292,7 @@ def logout():
     Returns:
         Success message
     """
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # Convert string to int
     
     AuthService.logout(user_id)
     
@@ -287,7 +311,7 @@ def logout_all():
     Returns:
         Success message with count of revoked sessions
     """
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())  # Convert string to int
     
     count = AuthService.logout_all_sessions(user_id)
     
@@ -411,6 +435,39 @@ def verify_otp():
             'error': str(e),
             'code': 'verification_failed'
         }), 401
+    except Exception as e:
+        return jsonify({
+            'error': 'Internal server error',
+            'code': 'internal_error'
+        }), 500
+
+
+@auth_bp.route('/me', methods=['GET'])
+@jwt_required()
+def get_current_user():
+    """
+    Get current authenticated user information
+    
+    Returns:
+        Current user data and session information
+    """
+    from flask_jwt_extended import get_jwt_identity
+    
+    try:
+        user_id = int(get_jwt_identity())  # Convert string to int
+        user = UserService.get_user(user_id)
+        
+        if not user:
+            return jsonify({
+                'error': 'User not found',
+                'code': 'user_not_found'
+            }), 404
+        
+        return jsonify({
+            'user': user.to_dict(),
+            'authenticated': True
+        }), 200
+        
     except Exception as e:
         return jsonify({
             'error': 'Internal server error',

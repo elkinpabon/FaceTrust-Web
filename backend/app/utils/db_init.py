@@ -89,13 +89,10 @@ def check_and_create_tables(app: Flask) -> bool:
             inspector = inspect(db.engine)
             existing = inspector.get_table_names()
             
-            if 'alembic_version' not in existing:
+            # Check if users table exists (main indicator of whether tables are created)
+            if 'users' not in existing:
                 app.logger.info("Creating tables...")
                 db.create_all()
-                
-                # Mark as initialized
-                cfg = get_alembic_config(app)
-                command.stamp(cfg, "head")
                 app.logger.info("✓ Tables created")
                 return True
             else:

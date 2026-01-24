@@ -7,7 +7,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta
 from typing import Dict, Tuple, Optional
-from flask import current_app
+from flask import current_app, request
 from flask_jwt_extended import create_access_token, create_refresh_token
 
 from app.models import db
@@ -41,28 +41,32 @@ class AuthService:
         Returns:
             Dictionary with tokens and user data
         """
-        # Generate unique JTI for token tracking
-        jti_access = secrets.token_urlsafe(32)
-        jti_refresh = secrets.token_urlsafe(32)
-        
-        # Create tokens
+        # Create tokens - flask-jwt-extended auto-generates JTI
+        # NOTE: identity must be a string, so convert user.id to str
         access_token = create_access_token(
-            identity=user.id,
+            identity=str(user.id),
             additional_claims={
                 'email': user.email,
-                'role': user.role.value,
-                'jti': jti_access
+                'role': user.role.value
             }
         )
         
         refresh_token = create_refresh_token(
-            identity=user.id,
-            additional_claims={
-                'jti': jti_refresh
-            }
+            identity=str(user.id)
         )
         
-        # Store session in database
+        # Extract the JTI that flask-jwt-extended generated
+        import jwt as pyjwt
+        decoded_access = pyjwt.decode(access_token, options={"verify_signature": False})
+        decoded_refresh = pyjwt.decode(refresh_token, options={"verify_signature": False})
+        
+        jti_access = decoded_access.get('jti')
+        jti_refresh = decoded_refresh.get('jti')
+        
+        print(f"[DEBUG create_tokens] Access token JTI: {jti_access}")
+        print(f"[DEBUG create_tokens] Refresh token JTI: {jti_refresh}")
+        
+        # Store session in database with the actual JTI from the token
         expires_at = datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
         
         Session.create_session(
@@ -72,6 +76,8 @@ class AuthService:
             ip_address=request.remote_addr,
             user_agent=request.headers.get('User-Agent')
         )
+        
+        print(f"[DEBUG create_tokens] Session created with JTI: {jti_access}")
         
         # Log successful login
         AuditService.log_action(
@@ -104,7 +110,7 @@ class AuthService:
             ValueError: If refresh token is invalid or revoked
         """
         # Get current identity from refresh token
-        user_id = get_jwt_identity()
+        user_id = int(get_jwt_identity())  # Convert string to int
         jwt_data = get_jwt()
         
         # Verify user still exists and is active
@@ -202,7 +208,10 @@ class AuthService:
         Returns:
             Boolean indicating revocation status
         """
-        return Session.is_token_revoked(jti)
+        print(f"[DEBUG is_token_revoked] Checking JTI: {jti}")
+        result = Session.is_token_revoked(jti)
+        print(f"[DEBUG is_token_revoked] JTI {jti[:10]}... is_revoked: {result}")
+        return result
     
     @staticmethod
     def get_active_sessions(user_id: int):

@@ -115,16 +115,24 @@ class Session(db.Model):
         """
         token_hash = Session.hash_token(jti)
         
+        print(f"[DEBUG Session.is_token_revoked] JTI: {jti[:10]}... Hash: {token_hash[:10]}...")
+        
         session = Session.query.filter_by(token_hash=token_hash).first()
         
+        print(f"[DEBUG Session.is_token_revoked] Session found: {session is not None}")
+        
+        # Si la sesión no existe, NO es revocada (aún es válida)
+        # Solo es revocada si existe pero está expirada o marcada como revocada
         if not session:
-            # Token doesn't exist in database - consider it revoked
-            return True
+            print(f"[DEBUG Session.is_token_revoked] No session found → returning False (NOT REVOKED)")
+            return False
         
         # Check if expired
         if session.expires_at < datetime.utcnow():
+            print(f"[DEBUG Session.is_token_revoked] Session expired → returning True (REVOKED)")
             return True
         
+        print(f"[DEBUG Session.is_token_revoked] Session.is_revoked: {session.is_revoked}")
         return session.is_revoked
     
     @staticmethod

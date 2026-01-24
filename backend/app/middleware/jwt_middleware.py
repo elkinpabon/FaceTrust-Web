@@ -20,7 +20,7 @@ def jwt_required_custom():
             verify_jwt_in_request()
             
             # Get user ID from token
-            user_id = get_jwt_identity()
+            user_id = int(get_jwt_identity())  # Convert string to int
             
             # Verify user still exists and is active
             user = User.query.get(user_id)

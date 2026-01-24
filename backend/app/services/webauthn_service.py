@@ -58,8 +58,8 @@ class WebAuthnService:
         rp_name = current_app.config['RP_NAME']
         origin = current_app.config['ORIGIN']
         
-        # Generate user handle (opaque identifier)
-        user_handle = base64.urlsafe_b64encode(str(user.id).encode()).decode().rstrip('=')
+        # Generate user handle (opaque identifier) - must be bytes
+        user_handle = str(user.id).encode('utf-8')
         
         # Exclude existing credentials to avoid duplicates
         existing_credentials = WebAuthnCredential.get_user_credentials(user.id)

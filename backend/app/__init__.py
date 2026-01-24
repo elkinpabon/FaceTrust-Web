@@ -52,6 +52,8 @@ def init_extensions(app):
     db.init_app(app)
     
     # JWT Authentication
+    print(f"[DEBUG JWT CONFIG] JWT_SECRET_KEY: {app.config['JWT_SECRET_KEY'][:10]}... (first 10 chars)")
+    print(f"[DEBUG JWT CONFIG] JWT_COOKIE_CSRF_PROTECT: {app.config.get('JWT_COOKIE_CSRF_PROTECT', 'NOT SET')}")
     jwt = JWTManager(app)
     
     # CORS Configuration
@@ -84,24 +86,30 @@ def init_extensions(app):
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
         """Check if JWT token is revoked"""
+        print(f"[DEBUG blocklist_loader] Called with JTI: {jwt_payload.get('jti', 'NO JTI')}")
         from app.services.auth_service import AuthService
         jti = jwt_payload['jti']
-        return AuthService.is_token_revoked(jti)
+        result = AuthService.is_token_revoked(jti)
+        print(f"[DEBUG blocklist_loader] Returning: {result}")
+        return result
     
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
         """Handle expired token"""
+        print(f"[DEBUG expired_token] Token expired - JTI: {jwt_payload.get('jti', 'NO JTI')}")
         return {'error': 'Token has expired', 'code': 'token_expired'}, 401
     
     @jwt.invalid_token_loader
     def invalid_token_callback(error):
         """Handle invalid token"""
-        return {'error': 'Invalid token', 'code': 'invalid_token'}, 401
+        print(f"[DEBUG invalid_token] Invalid token error: {error}")
+        return {'error': 'Invalid token', 'code': 'invalid_token', 'details': str(error)}, 401
     
     @jwt.unauthorized_loader
     def unauthorized_callback(error):
         """Handle missing token"""
-        return {'error': 'Missing authorization token', 'code': 'unauthorized'}, 401
+        print(f"[DEBUG unauthorized] Missing authorization: {error}")
+        return {'error': 'Missing authorization', 'code': 'unauthorized', 'details': str(error)}, 401
 
 
 def register_blueprints(app):
@@ -129,6 +137,21 @@ def setup_middleware(app):
         # Log request (solo para debug, no en producción)
         if app.config['DEBUG']:
             app.logger.debug(f'{request.method} {request.path}')
+            if request.method != 'OPTIONS':
+                auth_header = request.headers.get('Authorization', 'NO AUTH HEADER')
+                print(f"[DEBUG MIDDLEWARE] Authorization header: {auth_header[:80] if auth_header != 'NO AUTH HEADER' else 'NONE'}...")
+    
+    @app.after_request
+    def after_request(response):
+        """Execute after each request"""
+        from flask import request
+        
+        # Log 401 responses
+        if response.status_code == 401:
+            print(f"[DEBUG MIDDLEWARE] ⚠️ 401 UNAUTHORIZED for {request.method} {request.path}")
+            print(f"[DEBUG MIDDLEWARE] Response body: {response.get_data(as_text=True)[:300]}")
+        
+        return response
     
     @app.after_request
     def after_request(response):

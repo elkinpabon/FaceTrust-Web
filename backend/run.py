@@ -31,16 +31,15 @@ with app.app_context():
         sys.exit(1)
 
 if __name__ == '__main__':
-    # Development server with HTTPS (required for WebAuthn)
-    # For production, use Gunicorn or uWSGI with proper SSL certificates
+    # Development server with HTTP (sin SSL para desarrollo local)
+    # Para producción, usar Gunicorn o uWSGI con certificados SSL apropiados
     
     host = os.getenv('FLASK_HOST', 'localhost')
     port = int(os.getenv('FLASK_PORT', 5000))
     
-    app.logger.info(f"Starting server on https://{host}:{port}")
+    app.logger.info(f"Starting server on http://{host}:{port}")
     app.run(
         host=host,
         port=port,
-        ssl_context='adhoc',  # Auto-generate self-signed cert for dev
         debug=app.config['DEBUG']
     )
