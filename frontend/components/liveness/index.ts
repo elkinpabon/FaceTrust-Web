@@ -1,1 +1,0 @@
-export { LivenessDetector } from './LivenessDetector';

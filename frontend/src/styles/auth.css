@@ -1,0 +1,373 @@
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px;
+}
+
+.auth-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    padding: 40px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.auth-card h1 {
+    color: #667eea;
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+
+.auth-card h2 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: 500;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 5px rgba(102, 126, 234, 0.1);
+}
+
+.auth-button {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 10px;
+}
+
+.auth-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+.auth-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.auth-link {
+    text-align: center;
+    margin-top: 20px;
+    color: #666;
+    font-size: 14px;
+}
+
+.auth-link a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-link a:hover {
+    text-decoration: underline;
+}
+
+.error-message {
+    background: #fee;
+    color: #c33;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border-left: 4px solid #c33;
+    font-size: 14px;
+}
+
+.error-message-large {
+    background: #fee;
+    color: #c33;
+    padding: 20px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.error-message-large p {
+    font-size: 18px;
+    margin-bottom: 20px;
+}
+
+.error-message-large button {
+    padding: 10px 20px;
+    background: #c33;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.success-message {
+    background: #efe;
+    color: #3c3;
+    padding: 20px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 18px;
+}
+
+/* Face Scanner */
+.face-scanner {
+    text-align: center;
+    margin: 20px 0;
+}
+
+.face-scanner h3 {
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto 15px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+}
+
+.video-container video {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.video-container canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.detection-status {
+    padding: 10px 15px;
+    border-radius: 6px;
+    margin: 15px 0;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.detection-status.detected {
+    background: #efe;
+    color: #3c3;
+    border: 2px solid #3c3;
+}
+
+.detection-status.not-detected {
+    background: #fee;
+    color: #c33;
+    border: 2px solid #c33;
+}
+
+.capture-button {
+    padding: 10px 20px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.capture-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.capture-button:not(:disabled):hover {
+    background: #764ba2;
+    transform: scale(1.05);
+}
+
+.loading-message {
+    color: #667eea;
+    font-size: 14px;
+    margin: 20px 0;
+}
+
+.validation-message {
+    text-align: center;
+    padding: 30px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Estilos para FaceScanner en auth */
+.auth-card .face-scanner {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 20px;
+    max-width: 100%;
+    margin: 20px 0;
+    border-radius: 10px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.auth-card .scanner-header {
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.auth-card .scanner-title {
+    font-size: 18px;
+    margin-bottom: 5px;
+}
+
+.auth-card .usuario-nombre {
+    font-size: 15px;
+    margin-bottom: 0;
+}
+
+.auth-card .video-wrapper {
+    aspect-ratio: 16 / 9;
+    max-width: 100%;
+    margin-bottom: 15px;
+    border: 3px solid #667eea;
+}
+
+.auth-card .detection-message {
+    font-size: 13px;
+    padding: 12px 20px;
+    margin: 10px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.loading-message {
+    text-align: center;
+    color: #667eea;
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 15px;
+    animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.validation-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 40px;
+    text-align: center;
+}
+
+.validation-message p {
+    color: #667eea;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.success-message {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border: 2px solid #28a745;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    color: #155724;
+    font-weight: 600;
+    font-size: 16px;
+    animation: slideDown 0.5s ease;
+}
+
+.error-message-large {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+    border: 2px solid #dc3545;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    color: #721c24;
+}
+
+.error-message-large p {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.error-message-large button {
+    padding: 10px 25px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.error-message-large button:hover {
+    background: #c82333;
+    transform: translateY(-2px);
+}
+
+@media (max-width: 600px) {
+    .auth-card {
+        margin: 20px;
+        padding: 20px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
