@@ -172,15 +172,23 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     className="detection-canvas"
                 />
                 {rostroDetectado && (
+                    <div className="face-detection-indicator">
+                        <div className="detection-ring"></div>
+                    </div>
+                )}
+                <div className="overlay-instructions">
+                    {rostroDetectado ? '✓ Rostro detectado' : '👤 Posiciona tu rostro aquí'}
+                </div>
+                {rostroDetectado && (
                     <div className="detected-badge">
                         <span className="badge-dot"></span>
-                        Rostro detectado
+                        Listo para capturar
                     </div>
                 )}
             </div>
 
             <div className={`detection-message ${rostroDetectado ? 'success' : 'info'}`}>
-                {mensaje}
+                {rostroDetectado ? '✓ Captura en progreso...' : mensaje}
             </div>
 
             {!autoCapture && (
