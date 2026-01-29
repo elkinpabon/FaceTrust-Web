@@ -1,0 +1,181 @@
+.wave-background {
+    position: fixed;
+    bottom: -200px;
+    left: 0;
+    width: 100%;
+    height: 120vh;
+    pointer-events: none;
+    z-index: 0;
+    overflow: visible;
+    background: linear-gradient(180deg, transparent 0%, #1a3a3a 100%);
+}
+
+.waves {
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: scaleY(4);
+}
+
+.wave-path {
+    animation-duration: 15s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+.wave-1 {
+    animation-name: wave1;
+}
+
+.wave-2 {
+    animation-name: wave2;
+    animation-delay: -5s;
+}
+
+.wave-3 {
+    animation-name: wave3;
+    animation-delay: -10s;
+}
+
+@keyframes wave1 {
+    0% {
+        d: path("M0,50 Q300,10 600,50 T1200,50 L1200,120 L0,120 Z");
+    }
+    25% {
+        d: path("M0,50 Q300,30 600,50 T1200,50 L1200,120 L0,120 Z");
+    }
+    50% {
+        d: path("M0,50 Q300,50 600,50 T1200,50 L1200,120 L0,120 Z");
+    }
+    75% {
+        d: path("M0,50 Q300,30 600,50 T1200,50 L1200,120 L0,120 Z");
+    }
+    100% {
+        d: path("M0,50 Q300,10 600,50 T1200,50 L1200,120 L0,120 Z");
+    }
+}
+
+@keyframes wave2 {
+    0% {
+        d: path("M0,60 Q300,20 600,60 T1200,60 L1200,120 L0,120 Z");
+    }
+    25% {
+        d: path("M0,60 Q300,40 600,60 T1200,60 L1200,120 L0,120 Z");
+    }
+    50% {
+        d: path("M0,60 Q300,60 600,60 T1200,60 L1200,120 L0,120 Z");
+    }
+    75% {
+        d: path("M0,60 Q300,40 600,60 T1200,60 L1200,120 L0,120 Z");
+    }
+    100% {
+        d: path("M0,60 Q300,20 600,60 T1200,60 L1200,120 L0,120 Z");
+    }
+}
+
+@keyframes wave3 {
+    0% {
+        d: path("M0,70 Q300,30 600,70 T1200,70 L1200,120 L0,120 Z");
+    }
+    25% {
+        d: path("M0,70 Q300,50 600,70 T1200,70 L1200,120 L0,120 Z");
+    }
+    50% {
+        d: path("M0,70 Q300,70 600,70 T1200,70 L1200,120 L0,120 Z");
+    }
+    75% {
+        d: path("M0,70 Q300,50 600,70 T1200,70 L1200,120 L0,120 Z");
+    }
+    100% {
+        d: path("M0,70 Q300,30 600,70 T1200,70 L1200,120 L0,120 Z");
+    }
+}
+
+/* Responsivo */
+@media (max-width: 2560px) {
+    .wave-background {
+        height: 120vh;
+        bottom: -220px;
+    }
+    
+    .waves {
+        transform: scaleY(4.2);
+    }
+}
+
+@media (max-width: 2400px) {
+    .wave-background {
+        height: 120vh;
+        bottom: -200px;
+    }
+    
+    .waves {
+        transform: scaleY(4);
+    }
+}
+
+@media (max-width: 1920px) {
+    .wave-background {
+        height: 120vh;
+        bottom: -200px;
+    }
+    
+    .waves {
+        transform: scaleY(4);
+    }
+}
+
+@media (max-width: 1366px) {
+    .wave-background {
+        height: 115vh;
+        bottom: -180px;
+    }
+    
+    .waves {
+        transform: scaleY(3.8);
+    }
+}
+
+@media (max-width: 1024px) {
+    .wave-background {
+        height: 110vh;
+        bottom: -160px;
+    }
+    
+    .waves {
+        transform: scaleY(3.6);
+    }
+}
+
+@media (max-width: 768px) {
+    .wave-background {
+        height: 105vh;
+        bottom: -140px;
+    }
+    
+    .waves {
+        transform: scaleY(3.4);
+    }
+}
+
+@media (max-width: 600px) {
+    .wave-background {
+        height: 100vh;
+        bottom: -120px;
+    }
+    
+    .waves {
+        transform: scaleY(3.2);
+    }
+}
+
+@media (max-width: 480px) {
+    .wave-background {
+        height: 95vh;
+        bottom: -100px;
+    }
+    
+    .waves {
+        transform: scaleY(3);
+    }
+}

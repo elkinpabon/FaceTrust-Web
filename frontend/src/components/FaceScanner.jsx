@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as faceapi from 'face-api.js';
 import '../styles/faceScanner.css';
 
-const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true, nombreUsuario = null }) => {
+const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true, nombreUsuario = null, activo = true }) => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -21,7 +21,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 ]);
                 setModelsLoaded(true);
                 setCargando(false);
-                setMensaje('✓ Modelos cargados. Acerca tu rostro...');
+                setMensaje('Modelos cargados. Acerca tu rostro...');
             } catch (error) {
                 console.error('Error cargando modelos:', error);
                 setCargando(false);
@@ -45,13 +45,13 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
             }
         } catch (error) {
             console.error('Error al acceder a la cámara:', error);
-            setMensaje('❌ Error accediendo a la cámara');
+            setMensaje('Error accediendo a la cámara. Verifica los permisos.');
         }
     };
 
     // Iniciar cámara
     useEffect(() => {
-        if (!modelsLoaded) return;
+        if (!modelsLoaded || !activo) return;
 
         iniciarCamara();
 
@@ -61,7 +61,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 video.srcObject.getTracks().forEach(track => track.stop());
             }
         };
-    }, [modelsLoaded, iniciarCamara]);
+    }, [modelsLoaded, activo, iniciarCamara]);
 
     const detectarRostro = async () => {
         if (!videoRef.current || !modelsLoaded) return;
@@ -90,7 +90,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
                     if (detections.length > 0) {
                         setRostroDetectado(true);
-                        setMensaje('✓ Rostro detectado. Capturando...');
+                        setMensaje('Rostro detectado. Capturando...');
                         
                         // Dibujar detecciones
                         faceapi.draw.drawDetections(canvas, detections);
@@ -104,7 +104,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                         }
                     } else {
                         setRostroDetectado(false);
-                        setMensaje('👤 Acerca tu rostro a la cámara');
+                        setMensaje('Acerca tu rostro a la cámara para continuar');
                     }
                 }
             } catch (error) {
@@ -128,14 +128,14 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
         ctx.drawImage(videoRef.current, 0, 0);
 
         canvas.toBlob((blob) => {
-            setMensaje('✅ Rostro capturado correctamente');
+            setMensaje('Rostro capturado correctamente');
             onCapture(blob);
         }, 'image/jpeg', 0.95);
     };
 
     const capturarRostroManual = () => {
         if (!rostroDetectado) {
-            setMensaje('⚠️ Por favor, acerca tu rostro primero');
+            setMensaje('Por favor, acerca tu rostro primero');
             return;
         }
         capturarRostroAutomatico();
@@ -146,7 +146,8 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
             <div className="face-scanner">
                 <div className="loading-container">
                     <div className="spinner"></div>
-                    <p className="loading-message">Cargando modelos de reconocimiento facial...</p>
+                    <p className="loading-title">Iniciando análisis facial...</p>
+                    <p className="loading-subtitle">Por favor espera mientras se cargan los modelos de reconocimiento facial avanzado</p>
                 </div>
             </div>
         );
@@ -156,7 +157,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
         <div className="face-scanner">
             <div className="scanner-header">
                 <h3 className="scanner-title">{titulo}</h3>
-                {nombreUsuario && <p className="usuario-nombre">👤 {nombreUsuario}</p>}
+                {nombreUsuario && <p className="usuario-nombre">{nombreUsuario}</p>}
             </div>
             
             <div className="video-wrapper">
@@ -177,7 +178,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     </div>
                 )}
                 <div className="overlay-instructions">
-                    {rostroDetectado ? '✓ Rostro detectado' : '👤 Posiciona tu rostro aquí'}
+                    {rostroDetectado ? 'Rostro detectado' : 'Posiciona tu rostro aquí'}
                 </div>
                 {rostroDetectado && (
                     <div className="detected-badge">
@@ -187,8 +188,10 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 )}
             </div>
 
-            <div className={`detection-message ${rostroDetectado ? 'success' : 'info'}`}>
-                {rostroDetectado ? '✓ Captura en progreso...' : mensaje}
+            <div className="detection-message-wrapper">
+                <div className={`detection-message ${rostroDetectado ? 'success' : 'info'}`}>
+                    {rostroDetectado ? '✓ Rostro detectado correctamente - Capturando...' : 'Acerca tu rostro a la cámara'}
+                </div>
             </div>
 
             {!autoCapture && (
@@ -197,7 +200,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     disabled={!rostroDetectado}
                     className="capture-button"
                 >
-                    📸 Capturar Rostro
+                    Capturar Rostro
                 </button>
             )}
         </div>

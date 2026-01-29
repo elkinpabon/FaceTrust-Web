@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import FaceScanner from '../components/FaceScanner.jsx';
+import WaveBackground from '../components/WaveBackground.jsx';
+import Logo from '../components/Logo.jsx';
 import '../styles/auth.css';
 
 const ValidarIdentidad = () => {
@@ -54,34 +56,60 @@ const ValidarIdentidad = () => {
     };
 
     return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <h1>Reconocimiento Facial</h1>
-                <h2>Validar Identidad</h2>
+        <>
+            {estado === 'escaneando' ? (
+                <div className="fullscreen-scanner-container">
+                    <div className="scanner-top-bar">
+                        <div className="scanner-logo-header">
+                            <Logo size={32} />
+                            <h1>FACETRUST</h1>
+                        </div>
+                        <p className="scanner-subtitle">Análisis Facial - Escanea tu rostro para verificación</p>
+                    </div>
+                    <div className="scanner-content">
+                        <FaceScanner 
+                            onCapture={handleCapturarRostro} 
+                            titulo="Escanear tu Rostro"
+                            nombreUsuario={datosUsuario?.usuario?.nombre}
+                        />
+                    </div>
+                </div>
+            ) : (
+                <div className="auth-container">
+                    <WaveBackground />
+                    <div className="auth-card">
+                        <div className="auth-header">
+                            <div className="logo-header">
+                                <Logo size={40} />
+                                <h1>FACETRUST</h1>
+                            </div>
+                            <h2>Verificación Facial</h2>
+                            <p className="auth-subtitle">Confirma tu identidad para continuar</p>
+                        </div>
 
-                {estado === 'escaneando' ? (
-                    <FaceScanner 
-                        onCapture={handleCapturarRostro} 
-                        titulo="Verifica tu Identidad"
-                        nombreUsuario={datosUsuario?.usuario?.nombre}
-                    />
-                ) : estado === 'validando' ? (
-                    <div className="validation-message">
-                        <p>{mensaje}</p>
-                        <div className="spinner"></div>
+                        {estado === 'validando' ? (
+                            <div className="validation-message">
+                                <p>{mensaje}</p>
+                                <div className="spinner"></div>
+                            </div>
+                        ) : estado === 'exito' ? (
+                            <div className="success-modal">
+                                <div className="success-icon">✓</div>
+                                <h2>Bienvenido</h2>
+                                <p className="welcome-name">{datosUsuario?.usuario?.nombre}</p>
+                                <p className="success-message">Tu identidad ha sido verificada correctamente</p>
+                                <div className="loading-spinner"></div>
+                            </div>
+                        ) : (
+                            <div className="error-message-large">
+                                <p>{mensaje}</p>
+                                <button onClick={() => window.location.reload()}>Intentar de Nuevo</button>
+                            </div>
+                        )}
                     </div>
-                ) : estado === 'exito' ? (
-                    <div className="success-message">
-                        <p>✓ ¡Bienvenido {datosUsuario?.usuario?.nombre}! {mensaje}</p>
-                    </div>
-                ) : (
-                    <div className="error-message-large">
-                        <p>✗ {mensaje}</p>
-                        <button onClick={() => window.location.reload()}>Intentar de Nuevo</button>
-                    </div>
-                )}
-            </div>
-        </div>
+                </div>
+            )}
+        </>
     );
 };
 

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import WaveBackground from '../components/WaveBackground.jsx';
+import Logo from '../components/Logo.jsx';
 import '../styles/auth.css';
 
 const Login = () => {
@@ -37,35 +39,52 @@ const Login = () => {
 
     return (
         <div className="auth-container">
+            <WaveBackground />
             <div className="auth-card">
-                <h1>Reconocimiento Facial</h1>
-                <h2>Inicia Sesión</h2>
+                <div className="auth-header">
+                    <div className="logo-header">
+                        <Logo size={40} />
+                        <h1>FACETRUST</h1>
+                    </div>
+                    <h2>Inicia Sesión</h2>
+                    <p className="auth-subtitle">Verifica tu identidad con reconocimiento facial</p>
+                </div>
 
                 {error && <div className="error-message">{error}</div>}
 
-                <form onSubmit={handleLogin}>
+                <form onSubmit={handleLogin} className="auth-form">
                     <div className="form-group">
                         <label>Correo Electrónico</label>
-                        <input
-                            type="email"
-                            value={correo}
-                            onChange={(e) => setCorreo(e.target.value)}
-                            required
-                        />
+                        <div className="input-wrapper">
+                            <input
+                                type="email"
+                                value={correo}
+                                onChange={(e) => setCorreo(e.target.value)}
+                                placeholder="correo@ejemplo.com"
+                                required
+                                className="form-input"
+                            />
+                            <span className="input-icon">@</span>
+                        </div>
                     </div>
 
                     <div className="form-group">
                         <label>Contraseña</label>
-                        <input
-                            type="password"
-                            value={contraseña}
-                            onChange={(e) => setContraseña(e.target.value)}
-                            required
-                        />
+                        <div className="input-wrapper">
+                            <input
+                                type="password"
+                                value={contraseña}
+                                onChange={(e) => setContraseña(e.target.value)}
+                                placeholder="Ingresa tu contraseña"
+                                required
+                                className="form-input"
+                            />
+                            <span className="input-icon">●</span>
+                        </div>
                     </div>
 
                     <button type="submit" disabled={cargando} className="auth-button">
-                        {cargando ? 'Validando...' : 'Continuar'}
+                        {cargando ? 'Validando...' : 'Continuar al Escaneo'}
                     </button>
                 </form>
 
