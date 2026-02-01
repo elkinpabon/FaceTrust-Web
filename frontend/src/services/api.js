@@ -49,6 +49,14 @@ export const authService = {
     registrarFalloFacial: (usuarioId) => {
         console.log('[API] registrarFalloFacial llamado para usuarioId:', usuarioId);
         return api.post(`/auth/registrar-fallo-facial/${usuarioId}`);
+    },
+    solicitarDosFA: (datos) => {
+        console.log('[API] solicitarDosFA llamado para:', datos.correo);
+        return api.post('/auth/solicitar-2fa', datos);
+    },
+    verificarDosFA: (datos) => {
+        console.log('[API] verificarDosFA llamado para usuarioId:', datos.usuarioId);
+        return api.post('/auth/verificar-2fa', datos);
     }
 };
 

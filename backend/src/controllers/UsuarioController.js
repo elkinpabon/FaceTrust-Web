@@ -1,6 +1,7 @@
 const Usuario = require('../models/Usuario');
 const Registro = require('../models/Registro');
 const pool = require('../config/database');
+const xss = require('xss');
 
 class UsuarioController {
     // Obtener perfil del usuario actual
@@ -23,11 +24,19 @@ class UsuarioController {
         try {
             const { nombre, apellido, telefono, direccion } = req.body;
 
+            // Validaciones y sanitización
+            if (nombre && !/^[a-záéíóúñ\s]{2,}$/i.test(nombre.trim())) {
+                return res.status(400).json({ error: 'Nombre inválido' });
+            }
+            if (telefono && !/^\d{7,15}$/.test(telefono.replace(/\D/g, ''))) {
+                return res.status(400).json({ error: 'Teléfono inválido' });
+            }
+
             await Usuario.actualizar(req.usuario.id, {
-                nombre,
-                apellido,
-                telefono,
-                direccion
+                nombre: nombre ? xss(nombre.trim()) : undefined,
+                apellido: apellido ? xss(apellido.trim()) : undefined,
+                telefono: telefono ? xss(telefono.trim()) : undefined,
+                direccion: direccion ? xss(direccion.trim()) : undefined
             });
 
             return res.json({ mensaje: 'Perfil actualizado exitosamente' });

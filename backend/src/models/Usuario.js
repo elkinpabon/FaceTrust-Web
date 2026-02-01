@@ -142,6 +142,22 @@ class Usuario {
         }
     }
 
+    // Verificar si cédula existe
+    static async existeCedula(cedula, excluirId = null) {
+        try {
+            let query = 'SELECT id FROM usuarios WHERE cedula = ?';
+            const params = [cedula];
+            if (excluirId) {
+                query += ' AND id != ?';
+                params.push(excluirId);
+            }
+            const [resultados] = await pool.query(query, params);
+            return resultados.length > 0;
+        } catch (error) {
+            throw error;
+        }
+    }
+
     // Eliminar usuario (solo admin)
     static async eliminar(id) {
         try {

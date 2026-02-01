@@ -27,10 +27,34 @@ export const AuthProvider = ({ children }) => {
     };
 
     const logout = () => {
+        // Detener todos los tracks de cámara/micrófono
+        if (navigator.mediaDevices) {
+            navigator.mediaDevices.enumerateDevices().then(devices => {
+                devices.forEach(device => {
+                    if (device.kind === 'videoinput' || device.kind === 'audioinput') {
+                        console.log('[LOGOUT] Limpiando dispositivo:', device.kind);
+                    }
+                });
+            });
+        }
+        
+        // Buscar y detener todos los streams activos
+        const videos = document.querySelectorAll('video');
+        videos.forEach(video => {
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('[LOGOUT] Track detenido:', track.kind);
+                });
+                video.srcObject = null;
+            }
+        });
+
         setUsuario(null);
         setToken(null);
         localStorage.removeItem('token');
         localStorage.removeItem('usuario');
+        console.log('[LOGOUT] Sesión cerrada, cámara detenida');
     };
 
     return (

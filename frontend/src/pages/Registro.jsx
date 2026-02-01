@@ -54,23 +54,36 @@ const Registro = () => {
         try {
             const usuarioId = localStorage.getItem('usuarioRegistroId');
             
+            console.log('[REGISTRO] Iniciando captura para usuario:', usuarioId);
+            console.log('[REGISTRO] Blob size:', blob.size);
+            
             // Guardar imagen
-            await authService.guardarImagenFacial(usuarioId, blob);
+            console.log('[REGISTRO] Enviando imagen al backend...');
+            const imagenResponse = await authService.guardarImagenFacial(usuarioId, blob);
+            console.log('[REGISTRO] Imagen guardada:', imagenResponse);
 
             // Extraer descriptor facial
             console.log('[REGISTRO] Extrayendo descriptor facial...');
             const descriptorFacial = await extraerDescriptorFacial(blob);
             
             if (descriptorFacial) {
-                console.log('[REGISTRO] Descriptor extraído, guardando...');
+                console.log('[REGISTRO] Descriptor extraído, guardando en localStorage...');
                 localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
+                console.log('[REGISTRO] Descriptor guardado en localStorage');
+            } else {
+                console.warn('[REGISTRO] No se extrajo descriptor');
             }
 
+            console.log('[REGISTRO] Registro completado exitosamente');
             localStorage.removeItem('usuarioRegistroId');
             setRegistroExitoso(true);
         } catch (err) {
-            console.error('[REGISTRO] Error:', err);
-            setError(err.response?.data?.error || 'Error al guardar imagen facial');
+            console.error('[REGISTRO] Error completo:', err);
+            console.error('[REGISTRO] Error response:', err.response);
+            console.error('[REGISTRO] Error message:', err.message);
+            const mensajeError = err.response?.data?.error || err.message || 'Error al guardar imagen facial';
+            console.log('[REGISTRO] Mostrando error:', mensajeError);
+            setError(mensajeError);
             setCargando(false);
         }
     };

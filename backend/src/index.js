@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
 const MigrationRunner = require('../migrations/runner');
+const helmet = require('helmet');
 
 // Importar rutas
 const authRoutes = require('./routes/authRoutes');
@@ -12,8 +13,17 @@ const registroRoutes = require('./routes/registroRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// Middleware de seguridad
+app.use(helmet());
+
+// CORS configurado
+app.use(cors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

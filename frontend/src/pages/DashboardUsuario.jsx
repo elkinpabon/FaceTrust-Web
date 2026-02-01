@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usuarioService, registroService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Clock, Play, Square, LogOut, User, FileText, CheckCircle } from 'lucide-react';
+import { Clock, Play, Square, LogOut, User, FileText, CheckCircle, Shield } from 'lucide-react';
 import Logo from '../components/Logo.jsx';
+import Modal2FA from '../components/Modal2FA.jsx';
 import '../styles/dashboard.css';
 
 const DashboardUsuario = () => {
@@ -14,6 +15,7 @@ const DashboardUsuario = () => {
     const [cargando, setCargando] = useState(true);
     const [tab, setTab] = useState('resumen');
     const [registroExitoso, setRegistroExitoso] = useState(null);
+    const [mostrarModal2FA, setMostrarModal2FA] = useState(false);
 
     useEffect(() => {
         cargarDatos();
@@ -174,8 +176,29 @@ const DashboardUsuario = () => {
 
                             <div className="info-card">
                                 <div className="card-header">
-                                    <h3>Registro de Hoy</h3>
-                                    <span className="card-icon">📅</span>
+                                    <h3>Seguridad</h3>
+                                    <span className="card-icon"><Shield size={22} color="#c1121f" /></span>
+                                </div>
+                                <div className="card-body">
+                                    <div className="security-section">
+                                        <div className="security-item">
+                                            <h4>Autenticación de Dos Factores</h4>
+                                            <p>Protege tu cuenta con Google Authenticator</p>
+                                            <button 
+                                                className="btn-activar-2fa"
+                                                onClick={() => setMostrarModal2FA(true)}
+                                            >
+                                                <Shield size={16} style={{marginRight: '8px'}} />
+                                                Activar 2FA
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="info-card">
+                                <div className="card-header">
+                                    <h3>Hoy</h3>
                                 </div>
                                 <div className="card-body">
                                     {registroHoy ? (
@@ -281,6 +304,18 @@ const DashboardUsuario = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal 2FA */}
+            {mostrarModal2FA && (
+                <Modal2FA 
+                    usuario={perfil}
+                    onCerrar={() => setMostrarModal2FA(false)}
+                    onExito={() => {
+                        alert('✓ 2FA activado correctamente');
+                        cargarDatos();
+                    }}
+                />
+            )}
         </div>
     );
 };

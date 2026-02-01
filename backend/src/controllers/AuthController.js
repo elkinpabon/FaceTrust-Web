@@ -1,6 +1,10 @@
 const Usuario = require('../models/Usuario');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
+const { validate: isValidEmail } = require('email-validator');
+const xss = require('xss');
+const LoginAttempts = require('../utils/LoginAttempts');
+const TwoFactorService = require('../services/TwoFactorService');
 
 class AuthController {
     // Registro
@@ -8,26 +12,71 @@ class AuthController {
         try {
             const { nombre, apellido, cedula, correo, contraseña, telefono, direccion } = req.body;
 
-            // Validaciones
+            // Validaciones básicas
             if (!nombre || !apellido || !cedula || !correo || !contraseña) {
                 return res.status(400).json({ error: 'Faltan campos requeridos' });
             }
 
+            // Sanitizar inputs
+            const nombreSanitizado = xss(nombre.trim());
+            const apellidoSanitizado = xss(apellido.trim());
+            const cedulaSanitizado = xss(cedula.trim());
+            const correoSanitizado = xss(correo.trim().toLowerCase());
+
+            // Validar email
+            if (!isValidEmail(correoSanitizado)) {
+                return res.status(400).json({ error: 'Email inválido' });
+            }
+
+            // Validar longitud de contraseña
+            if (contraseña.length < 8) {
+                return res.status(400).json({ error: 'La contraseña debe tener mínimo 8 caracteres' });
+            }
+
+            // Validar fortaleza de contraseña
+            const regexContraseña = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            if (!regexContraseña.test(contraseña)) {
+                return res.status(400).json({ 
+                    error: 'La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales (@$!%*?&)' 
+                });
+            }
+
+            // Validar cédula (números solamente)
+            if (!/^\d{6,12}$/.test(cedulaSanitizado)) {
+                return res.status(400).json({ error: 'Cédula inválida (6-12 dígitos)' });
+            }
+
+            // Validar nombre (solo letras y espacios)
+            if (!/^[a-záéíóúñ\s]{2,}$/i.test(nombreSanitizado)) {
+                return res.status(400).json({ error: 'Nombre inválido (solo letras y espacios, mínimo 2)' });
+            }
+
+            // Validar teléfono si se proporciona
+            if (telefono && !/^\d{7,15}$/.test(telefono.replace(/\D/g, ''))) {
+                return res.status(400).json({ error: 'Teléfono inválido' });
+            }
+
             // Verificar si correo existe
-            const existe = await Usuario.existeCorreo(correo);
+            const existe = await Usuario.existeCorreo(correoSanitizado);
             if (existe) {
                 return res.status(400).json({ error: 'El correo ya está registrado' });
             }
 
-            // Crear usuario
+            // Verificar si cédula existe
+            const cedulaExiste = await Usuario.existeCedula(cedulaSanitizado);
+            if (cedulaExiste) {
+                return res.status(400).json({ error: 'La cédula ya está registrada' });
+            }
+
+            // Crear usuario con datos sanitizados
             const resultado = await Usuario.crear({
-                nombre,
-                apellido,
-                cedula,
-                correo,
+                nombre: nombreSanitizado,
+                apellido: apellidoSanitizado,
+                cedula: cedulaSanitizado,
+                correo: correoSanitizado,
                 contraseña,
-                telefono: telefono || '',
-                direccion: direccion || '',
+                telefono: telefono ? xss(telefono.trim()) : '',
+                direccion: direccion ? xss(direccion.trim()) : '',
                 rol: 'usuario'
             });
 
@@ -51,24 +100,66 @@ class AuthController {
             if (!correo || !contraseña) {
                 // Registrar intento fallido - sin usuario
                 console.log(`[LOGIN FALLIDO] Sin credenciales: ${correo}`);
-                await AuthController.registrarLoginLog(null, correo, 'fallida_contraseña', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
+                await AuthController.registrarLoginLog(null, correo || 'desconocido', 'fallida_contraseña', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
                 return res.status(400).json({ error: 'Correo y contraseña requeridos' });
             }
 
-            const usuario = await Usuario.obtenerPorCorreo(correo);
+            // Sanitizar y validar email
+            const correoSanitizado = xss(correo.trim().toLowerCase());
+            if (!isValidEmail(correoSanitizado)) {
+                return res.status(400).json({ error: 'Email inválido' });
+            }
+
+            const usuario = await Usuario.obtenerPorCorreo(correoSanitizado);
             if (!usuario) {
                 // Registrar intento - usuario no existe
                 console.log(`[LOGIN FALLIDO] Usuario no existe: ${correo}`);
                 await AuthController.registrarLoginLog(null, correo, 'usuario_no_existe', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
-                return res.status(401).json({ error: 'Credenciales inválidas' });
+                
+                // Registrar intento fallido
+                await LoginAttempts.registrarIntento(correoSanitizado);
+                const intentos = await LoginAttempts.obtenerIntentos(correoSanitizado);
+                
+                return res.status(401).json({ 
+                    error: 'Credenciales inválidas',
+                    intentosFallidos: intentos,
+                    bloqueadoPara2FA: intentos >= 5
+                });
             }
 
+            console.log(`[LOGIN] Verificando contraseña para ${correoSanitizado}`);
+            console.log(`[LOGIN] Hash almacenado: ${usuario.contraseña.substring(0, 20)}...`);
+            
             const esValido = await Usuario.verificarContraseña(contraseña, usuario.contraseña);
+            console.log(`[LOGIN] Contraseña válida: ${esValido}`);
+            
             if (!esValido) {
                 // Registrar intento fallido - contraseña incorrecta
                 console.log(`[LOGIN FALLIDO] Contraseña incorrecta: ${correo}`);
                 await AuthController.registrarLoginLog(usuario.id, correo, 'fallida_contraseña', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
-                return res.status(401).json({ error: 'Credenciales inválidas' });
+                
+                // Registrar intento fallido
+                await LoginAttempts.registrarIntento(correoSanitizado);
+                const intentos = await LoginAttempts.obtenerIntentos(correoSanitizado);
+                
+                // Si alcanzó 5 intentos, sugerir 2FA
+                if (intentos >= 5) {
+                    console.log(`[2FA] Se alcanzó límite de intentos para ${correoSanitizado}. Sugeriendo 2FA.`);
+                    return res.status(429).json({ 
+                        error: 'Demasiados intentos fallidos. Usa Google Authenticator para continuar',
+                        bloqueadoPara2FA: true,
+                        intentosFallidos: intentos,
+                        correo: correoSanitizado,
+                        proximoIntento: 'Ingresa tu código de Google Authenticator'
+                    });
+                }
+                
+                return res.status(401).json({ 
+                    error: 'Credenciales inválidas',
+                    intentosFallidos: intentos,
+                    bloqueadoPara2FA: false,
+                    intentosRestantes: 5 - intentos
+                });
             }
 
             // Si es usuario normal, requiere validación facial
@@ -84,6 +175,9 @@ class AuthController {
             // Login exitoso
             console.log(`[LOGIN EXITOSO] ${correo}`);
             await AuthController.registrarLoginLog(usuario.id, correo, 'exitoso', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
+            
+            // Limpiar intentos fallidos
+            await LoginAttempts.limpiarIntentos(correoSanitizado);
 
             // Generar JWT
             const token = jwt.sign(
@@ -273,6 +367,108 @@ class AuthController {
         } catch (error) {
             console.error('[ERROR] Error registrando fallo facial:', error);
             return res.status(500).json({ error: 'Error registrando fallo facial' });
+        }
+    }
+
+    // Solicitar 2FA (después de 5 intentos fallidos)
+    static async solicitarDosFA(req, res) {
+        try {
+            const { correo } = req.body;
+
+            if (!correo) {
+                return res.status(400).json({ error: 'Email requerido' });
+            }
+
+            const correoSanitizado = xss(correo.trim().toLowerCase());
+            if (!isValidEmail(correoSanitizado)) {
+                return res.status(400).json({ error: 'Email inválido' });
+            }
+
+            const usuario = await Usuario.obtenerPorCorreo(correoSanitizado);
+            if (!usuario) {
+                return res.status(401).json({ error: 'Usuario no encontrado' });
+            }
+
+            console.log(`[2FA] Solicitando 2FA para ${correoSanitizado}`);
+
+            // Generar nuevo secret siempre
+            const datos = await TwoFactorService.generarSecret(correoSanitizado);
+            const secret = datos.secret;
+            const qrCode = datos.qrCode;
+            
+            // Habilitar 2FA
+            await TwoFactorService.habilitarDosFA(usuario.id, secret);
+            console.log(`[2FA] ✓ 2FA generado para ${correoSanitizado}`);
+
+            return res.json({
+                mensaje: 'Escanea el código QR con Google Authenticator',
+                usuarioId: usuario.id,
+                qrCode: qrCode,
+                tieneCodigoQR: true,
+                instrucciones: 'Abre Google Authenticator y escanea el código QR o ingresa manualmente el código de configuración'
+            });
+        } catch (error) {
+            console.error('[ERROR] Error en solicitarDosFA:', error);
+            return res.status(500).json({ error: 'Error al solicitar 2FA' });
+        }
+    }
+
+    // Verificar código 2FA
+    static async verificarDosFA(req, res) {
+        try {
+            const { usuarioId, codigo } = req.body;
+
+            if (!usuarioId || !codigo) {
+                return res.status(400).json({ error: 'usuarioId y código requeridos' });
+            }
+
+            // Validar que código sea números de 6 dígitos
+            if (!/^\d{6}$/.test(codigo)) {
+                return res.status(400).json({ error: 'Código debe ser 6 dígitos' });
+            }
+
+            const usuario = await Usuario.obtenerPorId(usuarioId);
+            if (!usuario) {
+                return res.status(404).json({ error: 'Usuario no encontrado' });
+            }
+
+            const secret = await TwoFactorService.obtenerSecret(usuarioId);
+            if (!secret) {
+                return res.status(400).json({ error: '2FA no configurado para este usuario' });
+            }
+
+            // Verificar código
+            const esValido = TwoFactorService.verificarCodigo(secret, codigo);
+            if (!esValido) {
+                return res.status(401).json({ error: 'Código inválido o expirado' });
+            }
+
+            // Limpiar intentos fallidos de login
+            await LoginAttempts.limpiarIntentos(usuario.correo);
+
+            // Generar JWT
+            const token = jwt.sign(
+                { id: usuario.id, correo: usuario.correo, rol: usuario.rol },
+                process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_2025',
+                { expiresIn: process.env.JWT_EXPIRE || '7d' }
+            );
+
+            console.log(`[2FA] ✓ Código verificado - Login exitoso para ${usuario.correo}`);
+
+            return res.json({
+                mensaje: 'Login exitoso con 2FA',
+                token,
+                usuario: {
+                    id: usuario.id,
+                    nombre: usuario.nombre,
+                    apellido: usuario.apellido,
+                    correo: usuario.correo,
+                    rol: usuario.rol
+                }
+            });
+        } catch (error) {
+            console.error('[ERROR] Error verificando 2FA:', error);
+            return res.status(500).json({ error: 'Error verificando código' });
         }
     }
 }

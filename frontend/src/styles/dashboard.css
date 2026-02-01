@@ -538,3 +538,55 @@
         right: 10px;
     }
 }
+
+/* Estilos para 2FA */
+.security-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.security-item {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #c1121f;
+}
+
+.security-item h4 {
+    margin: 0 0 8px 0;
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.security-item p {
+    margin: 0 0 12px 0;
+    color: #666;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.btn-activar-2fa {
+    background: linear-gradient(135deg, #c1121f 0%, #e01e5a 100%);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.btn-activar-2fa:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(193, 18, 31, 0.3);
+}
+
+.btn-activar-2fa:active {
+    transform: translateY(0);
+}

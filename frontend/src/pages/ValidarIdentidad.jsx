@@ -9,11 +9,16 @@ import Logo from '../components/Logo.jsx';
 import '../styles/auth.css';
 
 const ValidarIdentidad = () => {
-    const [estado, setEstado] = useState('escaneando'); // escaneando, validando, exito, error
+    const [estado, setEstado] = useState('escaneando');
     const [mensaje, setMensaje] = useState('');
     const [datosUsuario, setDatosUsuario] = useState(null);
+    const [intentosFacial, setIntentosFacial] = useState(0);
+    const [codigo2FA, setCodigo2FA] = useState('');
+    const [validando2FA, setValidando2FA] = useState(false);
     const navigate = useNavigate();
     const { login } = useAuth();
+
+    const MAX_INTENTOS_FACIAL = 3;
 
     useEffect(() => {
         const datos = localStorage.getItem('usuarioTemporal');
@@ -25,13 +30,14 @@ const ValidarIdentidad = () => {
     const handleCapturarRostro = async (blob) => {
         setEstado('validando');
         setMensaje('Validando tu identidad...');
+        const nuevoIntento = intentosFacial + 1;
+        setIntentosFacial(nuevoIntento);
 
         try {
             const datosTemporales = JSON.parse(localStorage.getItem('usuarioTemporal'));
             
-            console.log('[VALIDAR] Blob recibido:', blob);
+            console.log('[VALIDAR] Intento:', nuevoIntento, 'de', MAX_INTENTOS_FACIAL);
             console.log('[VALIDAR] Blob size:', blob ? blob.size : 'NO HAY BLOB');
-            console.log('[VALIDAR] Usuario ID:', datosTemporales.usuario.id);
 
             if (!blob) {
                 throw new Error('No se capturó imagen facial');
@@ -41,48 +47,45 @@ const ValidarIdentidad = () => {
                 throw new Error('Imagen muy pequeña: ' + blob.size + ' bytes');
             }
 
-            // Extraer descriptor facial de la imagen capturada
-            console.log('[VALIDAR] Extrayendo descriptor facial...');
             const descriptorCapturado = await extraerDescriptorFacial(blob);
             
             if (!descriptorCapturado) {
                 throw new Error('No se pudo extraer descriptor facial de la imagen capturada');
             }
 
-            console.log('[VALIDAR] Descriptor capturado extraído');
-
-            // Obtener descriptor almacenado
             const descriptorAlmacenado = localStorage.getItem(`descriptor_${datosTemporales.usuario.id}`);
             
             if (!descriptorAlmacenado) {
-                console.warn('[VALIDAR] Descriptor almacenado no encontrado, permitiendo login (usuario registrado antes de actualización)');
-                // Si no hay descriptor almacenado, permitir login (usuario registrado antes)
+                console.warn('[VALIDAR] Descriptor almacenado no encontrado, permitiendo login');
             } else {
-                // Comparar descriptores
                 const descriptorAlmacenadoArray = JSON.parse(descriptorAlmacenado);
                 const distancia = faceapi.euclideanDistance(descriptorCapturado, descriptorAlmacenadoArray);
                 
                 console.log('[VALIDAR] Distancia euclidiana:', distancia);
                 
-                // Si la distancia es mayor a 0.6, es un rostro diferente
                 if (distancia > 0.6) {
                     console.error('[VALIDAR] Rostro no coincide. Distancia:', distancia);
-                    throw new Error('Este no es tu rostro. Por favor intenta nuevamente.');
+                    
+                    try {
+                        await authService.registrarFalloFacial(datosTemporales.usuario.id);
+                    } catch (err) {
+                        console.error('[VALIDAR] Error registrando fallo:', err);
+                    }
+
+                    setEstado('error');
+                    setMensaje(`Rostro no reconocido. Intenta de nuevo (Intento ${nuevoIntento}/${MAX_INTENTOS_FACIAL})`);
+                    return;
                 }
                 
                 console.log('[VALIDAR] Rostro validado correctamente');
             }
 
-            // Enviar blob al backend para registro adicional
             const response = await authService.verificarIdentidad(datosTemporales.usuario.id, blob);
-            
-            console.log('[VALIDAR] Respuesta del servidor:', response);
 
             if (response && response.data && response.data.token) {
                 setEstado('exito');
                 setMensaje('Identidad verificada correctamente');
 
-                // Guardar sesión con el nuevo token
                 login(response.data.usuario, response.data.token);
                 localStorage.removeItem('usuarioTemporal');
 
@@ -94,27 +97,16 @@ const ValidarIdentidad = () => {
                     }
                 }, 1500);
             } else {
-                throw new Error('Respuesta inválida del servidor');
+                const errorMsg = response.data?.error || 'Respuesta inválida del servidor';
+                throw new Error(errorMsg);
             }
 
         } catch (error) {
-            console.error('[VALIDAR] Error en validación DETALLADO:', error);
-            console.error('[VALIDAR] Error response:', error.response);
-            console.error('[VALIDAR] Error message:', error.message);
-            
-            // Si es error de validación facial, registrarlo en backend
-            if (error.message && error.message.includes('Este no es tu rostro')) {
-                try {
-                    const datosTemporales = JSON.parse(localStorage.getItem('usuarioTemporal'));
-                    await authService.registrarFalloFacial(datosTemporales.usuario.id);
-                    console.log('[VALIDAR] Fallo facial registrado en backend');
-                } catch (regErr) {
-                    console.error('[VALIDAR] Error registrando fallo facial:', regErr);
-                }
-            }
+            console.error('[VALIDAR] Error en validación:', error);
             
             setEstado('error');
-            setMensaje(error.response?.data?.error || error.message || 'No pudimos verificar tu identidad. Intenta nuevamente.');
+            const mensajeError = error.response?.data?.error || error.message || 'No pudimos verificar tu identidad. Intenta nuevamente.';
+            setMensaje(mensajeError);
         }
     };
 
@@ -144,6 +136,51 @@ const ValidarIdentidad = () => {
             };
             reader.readAsDataURL(blob);
         });
+    };
+
+    const handleVerificar2FA = async (e) => {
+        e.preventDefault();
+        setValidando2FA(true);
+
+        try {
+            const datosTemporales = JSON.parse(localStorage.getItem('usuarioTemporal'));
+            
+            if (!codigo2FA || codigo2FA.length !== 6) {
+                throw new Error('El código debe tener 6 dígitos');
+            }
+
+            console.log('[2FA] Verificando código para usuario:', datosTemporales.usuario.id);
+            
+            const response = await authService.verificarDosFA({
+                usuarioId: datosTemporales.usuario.id,
+                codigo: codigo2FA
+            });
+
+            if (response && response.data && response.data.token) {
+                setEstado('exito');
+                setMensaje('2FA verificado correctamente');
+
+                login(response.data.usuario, response.data.token);
+                localStorage.removeItem('usuarioTemporal');
+
+                setTimeout(() => {
+                    if (response.data.usuario.rol === 'admin') {
+                        navigate('/dashboard-admin');
+                    } else {
+                        navigate('/dashboard-usuario');
+                    }
+                }, 1500);
+            } else {
+                throw new Error('Respuesta inválida del servidor');
+            }
+
+        } catch (error) {
+            console.error('[2FA] Error:', error);
+            setMensaje(error.response?.data?.error || error.message || 'Código inválido');
+            setCodigo2FA('');
+        } finally {
+            setValidando2FA(false);
+        }
     };
 
     return (
@@ -183,6 +220,60 @@ const ValidarIdentidad = () => {
                                 <p>{mensaje}</p>
                                 <div className="spinner"></div>
                             </div>
+                        ) : estado === 'ingresar2fa' ? (
+                            <div className="form-container">
+                                <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>Ingresa tu código 2FA</h3>
+                                <p style={{ textAlign: 'center', color: '#666', marginBottom: '20px' }}>
+                                    {datosUsuario?.usuario?.nombre}, por favor ingresa el código de 6 dígitos de tu autenticador
+                                </p>
+                                <form onSubmit={handleVerificar2FA} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <div className="form-group">
+                                        <input
+                                            type="text"
+                                            maxLength="6"
+                                            placeholder="000000"
+                                            value={codigo2FA}
+                                            onChange={(e) => setCodigo2FA(e.target.value.replace(/\D/g, ''))}
+                                            disabled={validando2FA}
+                                            style={{
+                                                textAlign: 'center',
+                                                fontSize: '24px',
+                                                letterSpacing: '5px',
+                                                fontWeight: 'bold',
+                                                width: '100%',
+                                                padding: '12px',
+                                                border: '2px solid #ddd',
+                                                borderRadius: '8px',
+                                                fontFamily: 'monospace'
+                                            }}
+                                        />
+                                    </div>
+                                    {mensaje && (
+                                        <p style={{ color: '#e74c3c', textAlign: 'center', marginBottom: '10px' }}>
+                                            {mensaje}
+                                        </p>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        disabled={validando2FA || codigo2FA.length !== 6}
+                                        className="auth-button"
+                                    >
+                                        {validando2FA ? 'Verificando...' : 'Verificar Código'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEstado('escaneando')}
+                                        disabled={validando2FA}
+                                        className="auth-button-secondary"
+                                        style={{ 
+                                            backgroundColor: '#666',
+                                            border: '1px solid #888'
+                                        }}
+                                    >
+                                        Volver al Escaneo Facial
+                                    </button>
+                                </form>
+                            </div>
                         ) : estado === 'exito' ? (
                             <div className="success-modal">
                                 <div className="success-icon">✓</div>
@@ -194,7 +285,28 @@ const ValidarIdentidad = () => {
                         ) : (
                             <div className="error-message-large">
                                 <p>{mensaje}</p>
-                                <button onClick={() => window.location.reload()}>Intentar de Nuevo</button>
+                                <div className="button-group" style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
+                                    <button 
+                                        onClick={() => setEstado('escaneando')}
+                                        className="auth-button"
+                                    >
+                                        Reintentar Escaneo
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            setEstado('ingresar2fa');
+                                            setCodigo2FA('');
+                                            setMensaje('');
+                                        }}
+                                        className="auth-button-secondary"
+                                        style={{ 
+                                            backgroundColor: '#666',
+                                            border: '1px solid #888'
+                                        }}
+                                    >
+                                        Usar Código 2FA
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

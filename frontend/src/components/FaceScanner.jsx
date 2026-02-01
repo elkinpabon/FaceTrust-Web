@@ -1,14 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import '../styles/faceScanner.css';
 
 const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true, nombreUsuario = null, activo = true }) => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const detectIntervalRef = useRef(null);
+    const streamRef = useRef(null);
+    const lastCaptureTimeRef = useRef(0);
+    const isDetectingRef = useRef(false);
+    
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [rostroDetectado, setRostroDetectado] = useState(false);
     const [cargando, setCargando] = useState(true);
-    const [mensaje, setMensaje] = useState('');
 
     // Cargar modelos de face-api
     useEffect(() => {
@@ -23,73 +27,60 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 console.log('[FACE-API] Modelos cargados correctamente');
                 setModelsLoaded(true);
                 setCargando(false);
-                setMensaje('Modelos cargados. Acerca tu rostro...');
             } catch (error) {
                 console.error('[FACE-API] Error cargando modelos:', error);
                 setCargando(false);
-                setMensaje('Error cargando modelos');
             }
         };
 
         cargarModelos();
     }, []);
 
-    const iniciarCamara = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 640 }, height: { ideal: 480 } }
-            });
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.onloadedmetadata = () => {
-                    detectarRostro();
-                };
-            }
-        } catch (error) {
-            console.error('Error al acceder a la cámara:', error);
-            setMensaje('Error accediendo a la cámara. Verifica los permisos.');
+    const detenerCamara = useCallback(() => {
+        console.log('[CAMERA] Deteniendo cámara...');
+        if (detectIntervalRef.current) {
+            clearInterval(detectIntervalRef.current);
+            detectIntervalRef.current = null;
         }
-    };
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => {
+                track.stop();
+                console.log('[CAMERA] Track detenido:', track.kind);
+            });
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+        setRostroDetectado(false);
+        console.log('[CAMERA] Cámara detenida completamente');
+    }, []);
 
-    // Iniciar cámara
-    useEffect(() => {
-        if (!modelsLoaded || !activo) return;
+    const detectarRostro = useCallback(() => {
+        if (!videoRef.current || !canvasRef.current || !modelsLoaded) {
+            console.log('[DETECT] No puede iniciar - video:', !!videoRef.current, 'canvas:', !!canvasRef.current, 'modelsLoaded:', modelsLoaded);
+            return;
+        }
 
-        iniciarCamara();
-
-        return () => {
-            const video = videoRef.current;
-            if (video && video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
-            }
-        };
-    }, [modelsLoaded, activo, iniciarCamara]);
-
-    const detectarRostro = async () => {
-        if (!videoRef.current || !modelsLoaded) return;
-
+        console.log('[DETECT] Iniciando detección de rostro...');
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        let isDetecting = false;
-        let lastCaptureTime = 0;
-        let detectionCount = 0;
-        let successCount = 0;
 
-        const detectRostroInterval = setInterval(async () => {
-            if (!video.srcObject || isDetecting) return;
+        // Limpiar intervalo anterior si existe
+        if (detectIntervalRef.current) {
+            clearInterval(detectIntervalRef.current);
+        }
 
-            isDetecting = true;
-            detectionCount++;
+        detectIntervalRef.current = setInterval(async () => {
+            if (!video.srcObject || isDetectingRef.current) return;
+
+            isDetectingRef.current = true;
 
             try {
                 const detections = await faceapi
                     .detectAllFaces(video, new faceapi.SsdMobilenetv1Options())
                     .withFaceLandmarks()
                     .withFaceDescriptors();
-
-                if (detectionCount % 10 === 0) {
-                    console.log(`[FACE-API] Intento #${detectionCount}: ${detections.length} cara(s) detectada(s)`);
-                }
 
                 if (canvas) {
                     canvas.width = video.videoWidth;
@@ -98,9 +89,8 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                     if (detections.length > 0) {
-                        successCount++;
+                        console.log('[DETECT] Rostro detectado:', detections.length);
                         setRostroDetectado(true);
-                        setMensaje('Rostro detectado. Capturando...');
                         
                         // Dibujar detecciones
                         faceapi.draw.drawDetections(canvas, detections);
@@ -108,55 +98,109 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
                         // Captura automática si está habilitada y no se capturó recientemente
                         const ahora = Date.now();
-                        if (autoCapture && (ahora - lastCaptureTime) > 1500) {
-                            lastCaptureTime = ahora;
+                        if (autoCapture && (ahora - lastCaptureTimeRef.current) > 1500) {
+                            console.log('[CAPTURE] Capturando automáticamente...');
+                            lastCaptureTimeRef.current = ahora;
                             capturarRostroAutomatico();
                         }
                     } else {
                         setRostroDetectado(false);
-                        setMensaje('Acerca tu rostro a la cámara para continuar');
                     }
                 }
             } catch (error) {
-                console.error('Error detectando rostro:', error);
+                console.error('[DETECT] Error detectando:', error);
             } finally {
-                isDetecting = false;
+                isDetectingRef.current = false;
             }
         }, 300);
+    }, [modelsLoaded, autoCapture]);
 
-        return () => clearInterval(detectRostroInterval);
-    };
+    const capturarRostroAutomatico = useCallback(() => {
+        if (!videoRef.current) {
+            console.error('[CAPTURE] videoRef no disponible');
+            return;
+        }
 
-    const capturarRostroAutomatico = () => {
-        if (!videoRef.current) return;
+        console.log('[CAPTURE] Capturando rostro...');
 
-        console.log('[CAPTURE] Capturando rostro automáticamente');
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
 
-        const canvas = document.createElement('canvas');
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoRef.current, 0, 0);
-
-        canvas.toBlob((blob) => {
-            console.log('[CAPTURE] Blob creado:', blob ? blob.size + ' bytes' : 'NULL');
-            setMensaje('Rostro capturado correctamente');
-            if (blob) {
-                onCapture(blob);
-            } else {
-                console.error('[CAPTURE] Error: blob es NULL');
+            if (canvas.width === 0 || canvas.height === 0) {
+                console.error('[CAPTURE] Dimensiones del video inválidas');
+                return;
             }
-        }, 'image/jpeg', 0.95);
-    };
 
-    const capturarRostroManual = () => {
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoRef.current, 0, 0);
+
+            canvas.toBlob((blob) => {
+                console.log('[CAPTURE] Blob creado:', blob ? blob.size + ' bytes' : 'NULL');
+                if (blob) {
+                    onCapture(blob);
+                } else {
+                    console.error('[CAPTURE] Error: blob es NULL');
+                }
+            }, 'image/jpeg', 0.95);
+        } catch (error) {
+            console.error('[CAPTURE] Error en captura:', error);
+        }
+    }, [onCapture]);
+
+    const iniciarCamara = useCallback(async () => {
+        try {
+            console.log('[CAMERA] Iniciando cámara...');
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            console.log('[CAMERA] Stream obtenido:', stream.getTracks().length, 'tracks');
+            streamRef.current = stream;
+            
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.onloadedmetadata = () => {
+                    console.log('[CAMERA] Video metadata cargado, iniciando detección');
+                    console.log('[CAMERA] Dimensiones:', videoRef.current.videoWidth, 'x', videoRef.current.videoHeight);
+                    detectarRostro();
+                };
+                videoRef.current.onerror = (e) => {
+                    console.error('[CAMERA] Error en video:', e);
+                };
+            }
+        } catch (error) {
+            console.error('[CAMERA] Error iniciando:', error);
+        }
+    }, [detectarRostro]);
+
+    // Iniciar/detener cámara
+    useEffect(() => {
+        if (!modelsLoaded) {
+            console.log('[SETUP] Esperando a que se carguen los modelos...');
+            return;
+        }
+
+        console.log('[SETUP] Models cargados, activo:', activo);
+
+        if (activo) {
+            iniciarCamara();
+        } else {
+            detenerCamara();
+        }
+
+        return () => {
+            detenerCamara();
+        };
+    }, [modelsLoaded, activo, iniciarCamara, detenerCamara]);
+
+    const capturarRostroManual = useCallback(() => {
         if (!rostroDetectado) {
-            setMensaje('Por favor, acerca tu rostro primero');
+            console.log('[CAPTURE] Rostro no detectado aún');
             return;
         }
         capturarRostroAutomatico();
-    };
+    }, [rostroDetectado, capturarRostroAutomatico]);
 
     if (cargando) {
         return (
