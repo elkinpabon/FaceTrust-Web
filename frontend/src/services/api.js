@@ -45,6 +45,10 @@ export const authService = {
         return api.post(`/auth/verificar-identidad/${usuarioId}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+    },
+    registrarFalloFacial: (usuarioId) => {
+        console.log('[API] registrarFalloFacial llamado para usuarioId:', usuarioId);
+        return api.post(`/auth/registrar-fallo-facial/${usuarioId}`);
     }
 };
 
@@ -54,7 +58,10 @@ export const usuarioService = {
     actualizarPerfil: (datos) => api.put('/usuarios/perfil', datos),
     obtenerTodos: (filtro) => api.get('/usuarios', { params: { filtro } }),
     obtenerPorId: (usuarioId) => api.get(`/usuarios/${usuarioId}`),
-    eliminar: (usuarioId) => api.delete(`/usuarios/${usuarioId}`)
+    actualizar: (usuarioId, datos) => api.put(`/usuarios/${usuarioId}`, datos),
+    eliminar: (usuarioId) => api.delete(`/usuarios/${usuarioId}`),
+    obtenerLogsLogin: () => api.get('/usuarios/logs/login'),
+    obtenerHistorialCambios: () => api.get('/usuarios/historial/cambios')
 };
 
 // Servicios de Registros

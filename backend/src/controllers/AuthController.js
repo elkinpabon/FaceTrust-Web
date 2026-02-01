@@ -50,27 +50,31 @@ class AuthController {
 
             if (!correo || !contraseña) {
                 // Registrar intento fallido - sin usuario
-                AuthController.registrarLoginLog(null, correo, 'fallida_contraseña', ipAddress, userAgent).catch(() => {});
+                console.log(`[LOGIN FALLIDO] Sin credenciales: ${correo}`);
+                await AuthController.registrarLoginLog(null, correo, 'fallida_contraseña', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
                 return res.status(400).json({ error: 'Correo y contraseña requeridos' });
             }
 
             const usuario = await Usuario.obtenerPorCorreo(correo);
             if (!usuario) {
                 // Registrar intento - usuario no existe
-                AuthController.registrarLoginLog(null, correo, 'usuario_no_existe', ipAddress, userAgent).catch(() => {});
+                console.log(`[LOGIN FALLIDO] Usuario no existe: ${correo}`);
+                await AuthController.registrarLoginLog(null, correo, 'usuario_no_existe', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
                 return res.status(401).json({ error: 'Credenciales inválidas' });
             }
 
             const esValido = await Usuario.verificarContraseña(contraseña, usuario.contraseña);
             if (!esValido) {
                 // Registrar intento fallido - contraseña incorrecta
-                AuthController.registrarLoginLog(usuario.id, correo, 'fallida_contraseña', ipAddress, userAgent).catch(() => {});
+                console.log(`[LOGIN FALLIDO] Contraseña incorrecta: ${correo}`);
+                await AuthController.registrarLoginLog(usuario.id, correo, 'fallida_contraseña', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
                 return res.status(401).json({ error: 'Credenciales inválidas' });
             }
 
             // Si es usuario normal, requiere validación facial
             if (usuario.rol === 'usuario' && !usuario.imagen) {
-                AuthController.registrarLoginLog(usuario.id, correo, 'facial_fallido', ipAddress, userAgent).catch(() => {});
+                console.log(`[LOGIN FALLIDO] Sin imagen facial: ${correo}`);
+                await AuthController.registrarLoginLog(usuario.id, correo, 'facial_fallido', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
                 return res.status(403).json({ 
                     error: 'Primero debes registrar tu imagen facial',
                     usuarioId: usuario.id
@@ -78,7 +82,8 @@ class AuthController {
             }
 
             // Login exitoso
-            AuthController.registrarLoginLog(usuario.id, correo, 'exitoso', ipAddress, userAgent).catch(() => {});
+            console.log(`[LOGIN EXITOSO] ${correo}`);
+            await AuthController.registrarLoginLog(usuario.id, correo, 'exitoso', ipAddress, userAgent).catch(err => console.error('[ERROR REG LOG]', err.message));
 
             // Generar JWT
             const token = jwt.sign(
@@ -108,14 +113,21 @@ class AuthController {
     // Registrar log de login
     static async registrarLoginLog(usuarioId, correo, tipo, ipAddress, userAgent) {
         try {
+            const tiposValidos = ['exitoso', 'fallida_contraseña', 'usuario_no_existe', 'cuenta_bloqueada', 'facial_fallido'];
+            
+            if (!tiposValidos.includes(tipo)) {
+                console.error(`[ERROR] Tipo de login inválido: ${tipo}. Valores válidos: ${tiposValidos.join(', ')}`);
+                tipo = 'fallida_contraseña'; // valor por defecto
+            }
+
             const query = `
                 INSERT INTO login_logs (usuario_id, correo, tipo, ip_address, user_agent, timestamp)
                 VALUES (?, ?, ?, ?, ?, NOW())
             `;
-            await pool.query(query, [usuarioId, correo, tipo, ipAddress, userAgent]);
-            console.log(`[LOG] Login: ${correo} - ${tipo}`);
+            const [resultado] = await pool.query(query, [usuarioId, correo, tipo, ipAddress, userAgent]);
+            console.log(`[✓ LOG REGISTRADO] ${correo} - ${tipo} (ID: ${resultado.insertId})`);
         } catch (error) {
-            console.error('Error registrando log de login:', error);
+            console.error(`[✗ ERROR] Registrando log de login: ${error.message}`);
             // No interrumpir el flujo si falla el log
         }
     }
@@ -221,6 +233,46 @@ class AuthController {
         } catch (error) {
             console.error('[ERROR] Error al verificar identidad:', error);
             return res.status(500).json({ error: 'Error al verificar identidad' });
+        }
+    }
+
+    // Registrar fallo en validación facial
+    static async registrarFalloFacial(req, res) {
+        try {
+            const { usuarioId } = req.params;
+
+            // Validar usuarioId
+            if (!usuarioId) {
+                console.log('[ERROR] usuarioId no proporcionado');
+                return res.status(400).json({ error: 'usuarioId requerido' });
+            }
+
+            // Obtener usuario para obtener correo
+            const usuario = await Usuario.obtenerPorId(usuarioId);
+            if (!usuario) {
+                console.log('[ERROR] Usuario no encontrado:', usuarioId);
+                return res.status(404).json({ error: 'Usuario no encontrado' });
+            }
+
+            // Obtener IP y User Agent
+            const ipAddress = req.ip || req.connection.remoteAddress || 'N/A';
+            const userAgent = req.get('user-agent') || 'N/A';
+
+            console.log(`[FACIAL] Registrando fallo facial para ${usuario.correo} (ID: ${usuarioId})`);
+
+            // Registrar el fallo facial como login fallido
+            await AuthController.registrarLoginLog(usuarioId, usuario.correo, 'facial_fallido', ipAddress, userAgent);
+
+            console.log(`[✓ FACIAL] Fallo facial registrado: ${usuario.correo}`);
+
+            return res.json({ 
+                mensaje: 'Fallo facial registrado',
+                usuarioId,
+                correo: usuario.correo
+            });
+        } catch (error) {
+            console.error('[ERROR] Error registrando fallo facial:', error);
+            return res.status(500).json({ error: 'Error registrando fallo facial' });
         }
     }
 }

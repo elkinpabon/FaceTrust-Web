@@ -84,9 +84,37 @@ class Usuario {
     // Actualizar perfil
     static async actualizar(id, datos) {
         try {
-            const { nombre, apellido, telefono, direccion } = datos;
-            const query = 'UPDATE usuarios SET nombre = ?, apellido = ?, telefono = ?, direccion = ? WHERE id = ?';
-            const [resultado] = await pool.query(query, [nombre, apellido, telefono, direccion, id]);
+            const campos = [];
+            const valores = [];
+
+            if (datos.nombre !== undefined) {
+                campos.push('nombre = ?');
+                valores.push(datos.nombre);
+            }
+            if (datos.apellido !== undefined) {
+                campos.push('apellido = ?');
+                valores.push(datos.apellido);
+            }
+            if (datos.telefono !== undefined) {
+                campos.push('telefono = ?');
+                valores.push(datos.telefono);
+            }
+            if (datos.direccion !== undefined) {
+                campos.push('direccion = ?');
+                valores.push(datos.direccion);
+            }
+            if (datos.correo !== undefined) {
+                campos.push('correo = ?');
+                valores.push(datos.correo);
+            }
+
+            if (campos.length === 0) {
+                return { affectedRows: 0 };
+            }
+
+            valores.push(id);
+            const query = `UPDATE usuarios SET ${campos.join(', ')} WHERE id = ?`;
+            const [resultado] = await pool.query(query, valores);
             return resultado;
         } catch (error) {
             throw error;

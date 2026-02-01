@@ -349,6 +349,41 @@
     color: #ff9800;
 }
 
+.field-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 11px;
+    background: rgba(25, 103, 210, 0.15);
+    color: #1967d2;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.value-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 11px;
+    font-family: 'Monaco', 'Courier New', monospace;
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.value-badge.anterior {
+    background: rgba(239, 83, 80, 0.1);
+    color: #ef5350;
+}
+
+.value-badge.nuevo {
+    background: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+}
+
 .btn-delete {
     background: #ff6b6b;
     color: white;
@@ -360,10 +395,35 @@
     font-family: 'Google Sans', sans-serif;
     font-size: 12px;
     transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .btn-delete:hover {
     background: #ee5a52;
+    transform: translateY(-2px);
+}
+
+.btn-edit {
+    background: #0d7377;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Google Sans', sans-serif;
+    font-size: 12px;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 8px;
+}
+
+.btn-edit:hover {
+    background: #0a5a5d;
     transform: translateY(-2px);
 }
 
@@ -390,6 +450,88 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Tablas para Logs y Historial */
+.logs-table,
+.historial-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+.logs-table thead,
+.historial-table thead {
+    background: linear-gradient(135deg, #0d7377 0%, #14b8a6 100%);
+    color: white;
+}
+
+.logs-table th,
+.historial-table th {
+    padding: 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.logs-table tbody tr,
+.historial-table tbody tr {
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.3s ease;
+}
+
+.logs-table tbody tr:hover,
+.historial-table tbody tr:hover {
+    background: #f9f9f9;
+}
+
+.logs-table td,
+.historial-table td {
+    padding: 14px;
+    font-size: 14px;
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.status-badge.exitoso {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.fallido,
+.status-badge.fallida {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.error-type-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(33, 150, 243, 0.1);
+    color: #2196f3;
+    text-transform: capitalize;
+    font-family: 'Monaco', 'Courier New', monospace;
+}
+
+.error-type-badge.exitoso {
+    background: rgba(76, 175, 80, 0.1);
+    color: #4caf50;
+}
+
+.error-type-badge.fallido {
+    background: rgba(244, 67, 54, 0.1);
+    color: #f44336;
 }
 
 /* Responsive */

@@ -1,0 +1,263 @@
+/* Modal Estilos */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease-in-out;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #1a3a3a;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.modal-close:hover {
+    color: #0d7377;
+}
+
+.modal-form {
+    padding: 24px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a3a3a;
+    margin-bottom: 8px;
+}
+
+.form-input {
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #0d7377;
+    box-shadow: 0 0 0 3px rgba(13, 115, 119, 0.1);
+}
+
+.form-input textarea {
+    resize: vertical;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.error-message {
+    background: #fee;
+    border: 1px solid #fcc;
+    color: #c33;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+.modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 16px 24px;
+    border-top: 1px solid #e0e0e0;
+    background: #f9f9f9;
+}
+
+.btn-cancel {
+    padding: 10px 20px;
+    background: #f0f0f0;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #666;
+    transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+    background: #e8e8e8;
+    border-color: #bbb;
+}
+
+.btn-save {
+    padding: 10px 20px;
+    background: #0d7377;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.btn-save:hover:not(:disabled) {
+    background: #0a5a5d;
+    box-shadow: 0 4px 12px rgba(13, 115, 119, 0.3);
+}
+
+.btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Botones de acción en tabla */
+.btn-edit {
+    background: #0d7377;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.3s ease;
+    margin-right: 8px;
+}
+
+.btn-edit:hover {
+    background: #0a5a5d;
+}
+
+.btn-delete {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.3s ease;
+}
+
+.btn-delete:hover {
+    background: #c0392b;
+}
+
+/* Status badges */
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.exitoso {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.fallido,
+.status-badge.fallida {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-header {
+        padding: 16px;
+    }
+
+    .modal-form {
+        padding: 16px;
+    }
+
+    .modal-footer {
+        padding: 12px 16px;
+        flex-direction: column-reverse;
+    }
+
+    .btn-cancel,
+    .btn-save {
+        width: 100%;
+    }
+}

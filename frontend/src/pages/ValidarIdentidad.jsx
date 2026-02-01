@@ -101,6 +101,18 @@ const ValidarIdentidad = () => {
             console.error('[VALIDAR] Error en validación DETALLADO:', error);
             console.error('[VALIDAR] Error response:', error.response);
             console.error('[VALIDAR] Error message:', error.message);
+            
+            // Si es error de validación facial, registrarlo en backend
+            if (error.message && error.message.includes('Este no es tu rostro')) {
+                try {
+                    const datosTemporales = JSON.parse(localStorage.getItem('usuarioTemporal'));
+                    await authService.registrarFalloFacial(datosTemporales.usuario.id);
+                    console.log('[VALIDAR] Fallo facial registrado en backend');
+                } catch (regErr) {
+                    console.error('[VALIDAR] Error registrando fallo facial:', regErr);
+                }
+            }
+            
             setEstado('error');
             setMensaje(error.response?.data?.error || error.message || 'No pudimos verificar tu identidad. Intenta nuevamente.');
         }

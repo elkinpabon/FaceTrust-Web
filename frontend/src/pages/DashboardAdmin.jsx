@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, ClipboardList, CheckCircle, LogOut, Search, Trash2 } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, LogOut, Search, Trash2, Edit, History, Lock } from 'lucide-react';
 import { usuarioService, registroService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Logo from '../components/Logo.jsx';
+import ModalEditarUsuario from '../components/ModalEditarUsuario.jsx';
 import '../styles/admin.css';
 
 const DashboardAdmin = () => {
@@ -11,10 +12,13 @@ const DashboardAdmin = () => {
     const navigate = useNavigate();
     const [usuarios, setUsuarios] = useState([]);
     const [registros, setRegistros] = useState([]);
+    const [logsLogin, setLogsLogin] = useState([]);
+    const [historialCambios, setHistorialCambios] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [tab, setTab] = useState('dashboard');
     const [filtro, setFiltro] = useState('');
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
+    const [modalAbierto, setModalAbierto] = useState(false);
 
     useEffect(() => {
         cargarDatos();
@@ -27,6 +31,12 @@ const DashboardAdmin = () => {
 
             const registrosData = await registroService.obtenerTodos();
             setRegistros(registrosData.data);
+
+            const logsData = await usuarioService.obtenerLogsLogin();
+            setLogsLogin(logsData.data || []);
+
+            const historialData = await usuarioService.obtenerHistorialCambios();
+            setHistorialCambios(historialData.data || []);
         } catch (error) {
             console.error('Error cargando datos:', error);
         } finally {
@@ -53,6 +63,15 @@ const DashboardAdmin = () => {
                 alert('Error al eliminar usuario');
             }
         }
+    };
+
+    const handleEditar = (user) => {
+        setUsuarioSeleccionado(user);
+        setModalAbierto(true);
+    };
+
+    const handleGuardarCambios = () => {
+        cargarDatos();
     };
 
     const handleLogout = () => {
@@ -110,6 +129,20 @@ const DashboardAdmin = () => {
                     >
                         <ClipboardList size={18} style={{marginRight: '8px'}} />
                         Asistencia
+                    </button>
+                    <button
+                        className={`tab-button ${tab === 'logs' ? 'active' : ''}`}
+                        onClick={() => setTab('logs')}
+                    >
+                        <Lock size={18} style={{marginRight: '8px'}} />
+                        Logs de Login
+                    </button>
+                    <button
+                        className={`tab-button ${tab === 'historial' ? 'active' : ''}`}
+                        onClick={() => setTab('historial')}
+                    >
+                        <History size={18} style={{marginRight: '8px'}} />
+                        Historial de Cambios
                     </button>
                 </div>
 
@@ -189,10 +222,18 @@ const DashboardAdmin = () => {
                                                 <td><span className={`role-badge ${user.rol}`}>{user.rol}</span></td>
                                                 <td>
                                                     <button
+                                                        onClick={() => handleEditar(user)}
+                                                        className="btn-edit"
+                                                        title="Editar usuario"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleEliminar(user.id)}
                                                         className="btn-delete"
+                                                        title="Eliminar usuario"
                                                     >
-                                                        Eliminar
+                                                        <Trash2 size={16} />
                                                     </button>
                                                 </td>
                                             </tr>
@@ -238,7 +279,103 @@ const DashboardAdmin = () => {
                         </div>
                     </div>
                 )}
+
+                {tab === 'logs' && (
+                    <div className="tab-content">
+                        <div className="table-wrapper">
+                            <table className="logs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Correo</th>
+                                        <th>Fecha y Hora</th>
+                                        <th>Estado</th>
+                                        <th>Tipo de Error</th>
+                                        <th>Dirección IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {logsLogin.length > 0 ? (
+                                        logsLogin.sort((a, b) => new Date(b.fecha_hora) - new Date(a.fecha_hora)).map((log) => (
+                                            <tr key={log.id}>
+                                                <td><strong>{log.usuario_nombre || 'Desconocido'}</strong></td>
+                                                <td>{log.usuario_email}</td>
+                                                <td>{new Date(log.fecha_hora).toLocaleString('es-CO')}</td>
+                                                <td>
+                                                    <span className={`status-badge ${log.estado}`}>
+                                                        {log.estado === 'exitoso' ? '✓ Exitoso' : '✗ Fallido'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span className={`error-type-badge ${log.estado}`}>
+                                                        {log.tipo_error === '-' ? '-' : log.tipo_error.replace(/_/g, ' ')}
+                                                    </span>
+                                                </td>
+                                                <td>{log.ip_address || '-'}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="6" className="empty-message">No hay logs de login</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+
+                {tab === 'historial' && (
+                    <div className="tab-content">
+                        <div className="table-wrapper">
+                            <table className="historial-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Correo</th>
+                                        <th>Campo Modificado</th>
+                                        <th>Valor Anterior</th>
+                                        <th>Valor Nuevo</th>
+                                        <th>Modificado por</th>
+                                        <th>Fecha</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {historialCambios.length > 0 ? (
+                                        historialCambios.sort((a, b) => new Date(b.fecha_cambio) - new Date(a.fecha_cambio)).map((cambio) => (
+                                            <tr key={cambio.id}>
+                                                <td><strong>{cambio.usuario_nombre || 'Desconocido'}</strong></td>
+                                                <td>{cambio.usuario_email || '-'}</td>
+                                                <td>
+                                                    <span className="field-badge">{cambio.campo_modificado || cambio.rol_anterior ? 'rol' : cambio.campo_modificado}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="value-badge anterior">{cambio.valor_anterior || cambio.rol_anterior || '-'}</span>
+                                                </td>
+                                                <td>
+                                                    <span className="value-badge nuevo">{cambio.valor_nuevo || cambio.rol_nuevo || '-'}</span>
+                                                </td>
+                                                <td>{cambio.modificado_por || 'Sistema'}</td>
+                                                <td>{new Date(cambio.fecha_cambio).toLocaleString('es-CO')}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="7" className="empty-message">No hay cambios registrados</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            <ModalEditarUsuario
+                usuario={usuarioSeleccionado}
+                isOpen={modalAbierto}
+                onClose={() => {
+                    setModalAbierto(false);
+                    setUsuarioSeleccionado(null);
+                }}
+                onGuardar={handleGuardarCambios}
+            />
         </div>
     );
 };

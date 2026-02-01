@@ -21,4 +21,7 @@ router.get('/imagen-facial/:usuarioId', AuthController.obtenerImagenFacial);
 // Verificar identidad facial
 router.post('/verificar-identidad/:usuarioId', upload.single('imagen'), AuthController.verificarIdentidad);
 
+// Registrar fallo facial
+router.post('/registrar-fallo-facial/:usuarioId', AuthController.registrarFalloFacial);
+
 module.exports = router;
