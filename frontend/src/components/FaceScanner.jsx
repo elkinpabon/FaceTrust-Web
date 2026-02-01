@@ -14,18 +14,20 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     useEffect(() => {
         const cargarModelos = async () => {
             try {
+                console.log('[FACE-API] Cargando modelos...');
                 await Promise.all([
                     faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
                     faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
                     faceapi.nets.faceRecognitionNet.loadFromUri('/models')
                 ]);
+                console.log('[FACE-API] Modelos cargados correctamente');
                 setModelsLoaded(true);
                 setCargando(false);
                 setMensaje('Modelos cargados. Acerca tu rostro...');
             } catch (error) {
-                console.error('Error cargando modelos:', error);
+                console.error('[FACE-API] Error cargando modelos:', error);
                 setCargando(false);
-                setMensaje('❌ Error cargando modelos');
+                setMensaje('Error cargando modelos');
             }
         };
 
@@ -70,17 +72,24 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
         const canvas = canvasRef.current;
         let isDetecting = false;
         let lastCaptureTime = 0;
+        let detectionCount = 0;
+        let successCount = 0;
 
         const detectRostroInterval = setInterval(async () => {
             if (!video.srcObject || isDetecting) return;
 
             isDetecting = true;
+            detectionCount++;
 
             try {
                 const detections = await faceapi
                     .detectAllFaces(video, new faceapi.SsdMobilenetv1Options())
                     .withFaceLandmarks()
                     .withFaceDescriptors();
+
+                if (detectionCount % 10 === 0) {
+                    console.log(`[FACE-API] Intento #${detectionCount}: ${detections.length} cara(s) detectada(s)`);
+                }
 
                 if (canvas) {
                     canvas.width = video.videoWidth;
@@ -89,6 +98,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                     if (detections.length > 0) {
+                        successCount++;
                         setRostroDetectado(true);
                         setMensaje('Rostro detectado. Capturando...');
                         
@@ -120,6 +130,8 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     const capturarRostroAutomatico = () => {
         if (!videoRef.current) return;
 
+        console.log('[CAPTURE] Capturando rostro automáticamente');
+
         const canvas = document.createElement('canvas');
         canvas.width = videoRef.current.videoWidth;
         canvas.height = videoRef.current.videoHeight;
@@ -128,8 +140,13 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
         ctx.drawImage(videoRef.current, 0, 0);
 
         canvas.toBlob((blob) => {
+            console.log('[CAPTURE] Blob creado:', blob ? blob.size + ' bytes' : 'NULL');
             setMensaje('Rostro capturado correctamente');
-            onCapture(blob);
+            if (blob) {
+                onCapture(blob);
+            } else {
+                console.error('[CAPTURE] Error: blob es NULL');
+            }
         }, 'image/jpeg', 0.95);
     };
 

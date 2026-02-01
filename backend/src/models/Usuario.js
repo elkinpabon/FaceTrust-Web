@@ -124,6 +124,17 @@ class Usuario {
             throw error;
         }
     }
+
+    // Actualizar rol de usuario
+    static async actualizarRol(id, rolNuevo) {
+        try {
+            const query = 'UPDATE usuarios SET rol = ? WHERE id = ?';
+            const [resultado] = await pool.query(query, [rolNuevo, id]);
+            return resultado;
+        } catch (error) {
+            throw error;
+        }
+    }
 }
 
 module.exports = Usuario;

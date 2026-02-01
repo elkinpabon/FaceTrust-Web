@@ -19,6 +19,6 @@ router.post('/imagen-facial/:usuarioId', upload.single('imagen'), AuthController
 router.get('/imagen-facial/:usuarioId', AuthController.obtenerImagenFacial);
 
 // Verificar identidad facial
-router.post('/verificar-identidad/:usuarioId', AuthController.verificarIdentidad);
+router.post('/verificar-identidad/:usuarioId', upload.single('imagen'), AuthController.verificarIdentidad);
 
 module.exports = router;

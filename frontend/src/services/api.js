@@ -30,7 +30,22 @@ export const authService = {
         });
     },
     obtenerImagenFacial: (usuarioId) => api.get(`/auth/imagen-facial/${usuarioId}`),
-    verificarIdentidad: (usuarioId) => api.post(`/auth/verificar-identidad/${usuarioId}`)
+    verificarIdentidad: (usuarioId, blob) => {
+        console.log('[API] verificarIdentidad llamado');
+        console.log('[API] usuarioId:', usuarioId);
+        console.log('[API] blob:', blob ? 'SI - ' + blob.size + ' bytes' : 'NO');
+        
+        const formData = new FormData();
+        if (blob) {
+            formData.append('imagen', blob, 'rostro.jpg');
+            console.log('[API] FormData creado con blob');
+        }
+        
+        console.log('[API] Enviando POST a:', `/auth/verificar-identidad/${usuarioId}`);
+        return api.post(`/auth/verificar-identidad/${usuarioId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    }
 };
 
 // Servicios de Usuarios

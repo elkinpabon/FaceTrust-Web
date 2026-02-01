@@ -22,14 +22,22 @@ const Login = () => {
         try {
             const response = await authService.login(correo, contraseña);
             
-            // Guardar datos y redirigir a validación facial
-            localStorage.setItem('usuarioTemporal', JSON.stringify({
-                usuarioId: response.data.usuario.id,
-                token: response.data.token,
-                usuario: response.data.usuario
-            }));
+            const usuarioData = response.data.usuario;
+            const token = response.data.token;
 
-            navigate('/validar-identidad');
+            // Si es admin, guardar en context e ir directo
+            if (usuarioData.rol === 'admin') {
+                login(usuarioData, token);
+                navigate('/dashboard-admin');
+            } else {
+                // Si es usuario normal, guardar temporalmente para validación facial
+                localStorage.setItem('usuarioTemporal', JSON.stringify({
+                    usuarioId: usuarioData.id,
+                    token: token,
+                    usuario: usuarioData
+                }));
+                navigate('/validar-identidad');
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'Error al iniciar sesión');
         } finally {
@@ -84,7 +92,7 @@ const Login = () => {
                     </div>
 
                     <button type="submit" disabled={cargando} className="auth-button">
-                        {cargando ? 'Validando...' : 'Continuar al Escaneo'}
+                        {cargando ? 'Validando...' : 'Iniciar Sesión'}
                     </button>
                 </form>
 

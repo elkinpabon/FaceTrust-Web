@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Users, ClipboardList, CheckCircle, LogOut, Search, Trash2 } from 'lucide-react';
 import { usuarioService, registroService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import Logo from '../components/Logo.jsx';
 import '../styles/admin.css';
 
 const DashboardAdmin = () => {
@@ -59,46 +61,55 @@ const DashboardAdmin = () => {
     };
 
     if (cargando) {
-        return <div className="loading">Cargando...</div>;
+        return <div className="admin-loading">
+            <div className="loading-spinner"></div>
+            <p>Cargando datos administrativos...</p>
+        </div>;
     }
 
     const totalUsuarios = usuarios.length;
     const totalRegistros = registros.length;
+    const usuariosActivosHoy = new Set(registros.map(r => r.usuario_id)).size;
 
     return (
         <div className="admin-dashboard">
-            <nav className="navbar">
-                <h1>Panel Administrativo</h1>
+            <nav className="admin-navbar">
+                <div className="navbar-logo-section">
+                    <Logo size={32} />
+                    <h1>FACETRUST Admin</h1>
+                </div>
                 <div className="navbar-right">
-                    <span className="admin-name">{usuario?.nombre}</span>
+                    <span className="admin-name">Admin: {usuario?.nombre}</span>
                     <button onClick={handleLogout} className="logout-btn">Cerrar Sesión</button>
                 </div>
             </nav>
 
             <div className="admin-container">
                 <div className="welcome-section">
-                    <h2>Bienvenido, Administrador</h2>
-                    <p className="welcome-subtitle">Gestiona empleados y registros de asistencia</p>
+                    <h2>Panel Administrativo</h2>
+                    <p className="welcome-subtitle">Gestión integral de usuarios y registros de asistencia</p>
                 </div>
 
-                <div className="tabs">
+                <div className="tabs-container">
                     <button
-                        className={`tab ${tab === 'dashboard' ? 'active' : ''}`}
+                        className={`tab-button ${tab === 'dashboard' ? 'active' : ''}`}
                         onClick={() => setTab('dashboard')}
                     >
-                        Dashboard
+                        📊 Dashboard
                     </button>
                     <button
-                        className={`tab ${tab === 'usuarios' ? 'active' : ''}`}
+                        className={`tab-button ${tab === 'usuarios' ? 'active' : ''}`}
                         onClick={() => setTab('usuarios')}
                     >
-                        Gestión Usuarios
+                        <Users size={18} style={{marginRight: '8px'}} />
+                        Usuarios
                     </button>
                     <button
-                        className={`tab ${tab === 'registros' ? 'active' : ''}`}
+                        className={`tab-button ${tab === 'registros' ? 'active' : ''}`}
                         onClick={() => setTab('registros')}
                     >
-                        Registros Asistencia
+                        <ClipboardList size={18} style={{marginRight: '8px'}} />
+                        Asistencia
                     </button>
                 </div>
 
@@ -106,16 +117,31 @@ const DashboardAdmin = () => {
                     <div className="tab-content">
                         <div className="stats-grid">
                             <div className="stat-card">
-                                <h3>Total Usuarios</h3>
-                                <p className="stat-number">{totalUsuarios}</p>
+                                <div className="stat-icon">
+                                    <Users size={32} color="white" />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Total Usuarios</h3>
+                                    <p className="stat-number">{totalUsuarios}</p>
+                                </div>
                             </div>
                             <div className="stat-card">
-                                <h3>Total Registros</h3>
-                                <p className="stat-number">{totalRegistros}</p>
+                                <div className="stat-icon">
+                                    <ClipboardList size={32} color="white" />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Total Registros</h3>
+                                    <p className="stat-number">{totalRegistros}</p>
+                                </div>
                             </div>
                             <div className="stat-card">
-                                <h3>Usuarios Activos Hoy</h3>
-                                <p className="stat-number">{new Set(registros.map(r => r.usuario_id)).size}</p>
+                                <div className="stat-icon">
+                                    <CheckCircle size={32} color="white" />
+                                </div>
+                                <div className="stat-info">
+                                    <h3>Activos Hoy</h3>
+                                    <p className="stat-number">{usuariosActivosHoy}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -124,83 +150,92 @@ const DashboardAdmin = () => {
                 {tab === 'usuarios' && (
                     <div className="tab-content">
                         <div className="search-section">
-                            <input
-                                type="text"
-                                placeholder="Buscar por nombre, correo o cédula"
-                                value={filtro}
-                                onChange={(e) => setFiltro(e.target.value)}
-                                className="search-input"
-                            />
-                            <button onClick={handleBuscar} className="btn-buscar">Buscar</button>
-                            <button onClick={cargarDatos} className="btn-reset">Limpiar</button>
+                            <div className="search-wrapper">
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre, correo o cédula..."
+                                    value={filtro}
+                                    onChange={(e) => setFiltro(e.target.value)}
+                                    className="search-input"
+                                />
+                                <span className="search-icon">🔍</span>
+                            </div>
+                            <div className="search-buttons">
+                                <button onClick={handleBuscar} className="btn-search">Buscar</button>
+                                <button onClick={cargarDatos} className="btn-reset">Limpiar</button>
+                            </div>
                         </div>
 
-                        <table className="usuarios-table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Correo</th>
-                                    <th>Cédula</th>
-                                    <th>Teléfono</th>
-                                    <th>Rol</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {usuarios.length > 0 ? (
-                                    usuarios.map((user) => (
-                                        <tr key={user.id}>
-                                            <td>{user.nombre} {user.apellido}</td>
-                                            <td>{user.correo}</td>
-                                            <td>{user.cedula}</td>
-                                            <td>{user.telefono || '-'}</td>
-                                            <td><span className={`role-badge ${user.rol}`}>{user.rol}</span></td>
-                                            <td>
-                                                <button
-                                                    onClick={() => handleEliminar(user.id)}
-                                                    className="btn-delete"
-                                                >
-                                                    Eliminar
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan="6">No hay usuarios</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                        <div className="table-wrapper">
+                            <table className="usuarios-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre Completo</th>
+                                        <th>Correo</th>
+                                        <th>Cédula</th>
+                                        <th>Teléfono</th>
+                                        <th>Rol</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {usuarios.length > 0 ? (
+                                        usuarios.map((user) => (
+                                            <tr key={user.id}>
+                                                <td><strong>{user.nombre} {user.apellido}</strong></td>
+                                                <td>{user.correo}</td>
+                                                <td>{user.cedula}</td>
+                                                <td>{user.telefono || '-'}</td>
+                                                <td><span className={`role-badge ${user.rol}`}>{user.rol}</span></td>
+                                                <td>
+                                                    <button
+                                                        onClick={() => handleEliminar(user.id)}
+                                                        className="btn-delete"
+                                                    >
+                                                        Eliminar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="6" className="empty-message">No hay usuarios para mostrar</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
 
                 {tab === 'registros' && (
                     <div className="tab-content">
-                        <table className="registros-table">
-                            <thead>
-                                <tr>
-                                    <th>Empleado</th>
-                                    <th>Fecha</th>
-                                    <th>Entrada</th>
-                                    <th>Salida</th>
-                                    <th>Duración</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {registros.length > 0 ? (
-                                    registros.map((registro) => (
-                                        <tr key={registro.id}>
-                                            <td>{registro.nombre} {registro.apellido}</td>
-                                            <td>{new Date(registro.hora_entrada).toLocaleDateString()}</td>
-                                            <td>{new Date(registro.hora_entrada).toLocaleTimeString()}</td>
-                                            <td>{registro.hora_salida ? new Date(registro.hora_salida).toLocaleTimeString() : '-'}</td>
-                                            <td>{registro.duracion || '-'}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr><td colSpan="5">No hay registros</td></tr>
-                                )}
-                            </tbody>
-                        </table>
+                        <div className="table-wrapper">
+                            <table className="registros-table">
+                                <thead>
+                                    <tr>
+                                        <th>Empleado</th>
+                                        <th>Fecha</th>
+                                        <th>Entrada</th>
+                                        <th>Salida</th>
+                                        <th>Duración</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {registros.length > 0 ? (
+                                        registros.map((registro) => (
+                                            <tr key={registro.id}>
+                                                <td><strong>{registro.nombre} {registro.apellido}</strong></td>
+                                                <td>{new Date(registro.hora_entrada).toLocaleDateString('es-CO')}</td>
+                                                <td>{new Date(registro.hora_entrada).toLocaleTimeString('es-CO')}</td>
+                                                <td>{registro.hora_salida ? new Date(registro.hora_salida).toLocaleTimeString('es-CO') : '-'}</td>
+                                                <td>{registro.duracion || '-'}</td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="5" className="empty-message">No hay registros de asistencia</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>

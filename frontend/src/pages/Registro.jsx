@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as faceapi from 'face-api.js';
+import { Lightbulb, Maximize2, Smile, CheckCircle, User, Mail, Lock, Phone, MapPin, IdCard } from 'lucide-react';
 import { authService } from '../services/api.js';
 import FaceScanner from '../components/FaceScanner.jsx';
 import WaveBackground from '../components/WaveBackground.jsx';
@@ -51,14 +53,54 @@ const Registro = () => {
 
         try {
             const usuarioId = localStorage.getItem('usuarioRegistroId');
+            
+            // Guardar imagen
             await authService.guardarImagenFacial(usuarioId, blob);
+
+            // Extraer descriptor facial
+            console.log('[REGISTRO] Extrayendo descriptor facial...');
+            const descriptorFacial = await extraerDescriptorFacial(blob);
+            
+            if (descriptorFacial) {
+                console.log('[REGISTRO] Descriptor extraído, guardando...');
+                localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
+            }
 
             localStorage.removeItem('usuarioRegistroId');
             setRegistroExitoso(true);
         } catch (err) {
+            console.error('[REGISTRO] Error:', err);
             setError(err.response?.data?.error || 'Error al guardar imagen facial');
             setCargando(false);
         }
+    };
+
+    const extraerDescriptorFacial = async (blob) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const img = new Image();
+                    img.onload = async () => {
+                        const detections = await faceapi
+                            .detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
+                            .withFaceLandmarks()
+                            .withFaceDescriptors();
+                        
+                        if (detections.length > 0) {
+                            console.log('[REGISTRO] Descriptor de rostro extraído');
+                            resolve(detections[0].descriptor);
+                        } else {
+                            reject(new Error('No se detectó rostro en la imagen'));
+                        }
+                    };
+                    img.src = event.target.result;
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.readAsDataURL(blob);
+        });
     };
 
     return (
@@ -109,7 +151,7 @@ const Registro = () => {
                                         required
                                         className="form-input"
                                     />
-                                    <span className="input-icon">👤</span>
+                                    <span className="input-icon"><User size={20} color="#0d7377" /></span>
                                 </div>
                             </div>
                             <div className="form-group">
@@ -124,7 +166,7 @@ const Registro = () => {
                                         required
                                         className="form-input"
                                     />
-                                    <span className="input-icon">👤</span>
+                                    <span className="input-icon"><User size={20} color="#0d7377" /></span>
                                 </div>
                             </div>
                         </div>
@@ -232,28 +274,36 @@ const Registro = () => {
                                 <div className="instructions-content">
                                     <ul className="instructions-list">
                                         <li className="instruction-item">
-                                            <div className="instruction-icon">💡</div>
+                                            <div className="instruction-icon">
+                                                <Lightbulb size={28} />
+                                            </div>
                                             <div className="instruction-text">
                                                 <strong>Iluminación</strong>
                                                 <p>Estar en un lugar bien iluminado con luz frontal</p>
                                             </div>
                                         </li>
                                         <li className="instruction-item">
-                                            <div className="instruction-icon">📏</div>
+                                            <div className="instruction-icon">
+                                                <Maximize2 size={28} />
+                                            </div>
                                             <div className="instruction-text">
                                                 <strong>Distancia</strong>
                                                 <p>Posiciónate a 30-50 cm de la cámara</p>
                                             </div>
                                         </li>
                                         <li className="instruction-item">
-                                            <div className="instruction-icon">😊</div>
+                                            <div className="instruction-icon">
+                                                <Smile size={28} />
+                                            </div>
                                             <div className="instruction-text">
                                                 <strong>Expresión Natural</strong>
                                                 <p>Rostro relajado, sin accesorios cubriendo</p>
                                             </div>
                                         </li>
                                         <li className="instruction-item">
-                                            <div className="instruction-icon">✓</div>
+                                            <div className="instruction-icon">
+                                                <CheckCircle size={28} />
+                                            </div>
                                             <div className="instruction-text">
                                                 <strong>Captura Automática</strong>
                                                 <p>El sistema detecta y captura al reconocerte</p>

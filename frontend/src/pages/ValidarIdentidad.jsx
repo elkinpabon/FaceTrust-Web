@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import * as faceapi from 'face-api.js';
 import { authService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import FaceScanner from '../components/FaceScanner.jsx';
@@ -26,33 +27,111 @@ const ValidarIdentidad = () => {
         setMensaje('Validando tu identidad...');
 
         try {
-            // Simular validación facial
-            // En una aplicación real, aquí se compararía con face-api.js
             const datosTemporales = JSON.parse(localStorage.getItem('usuarioTemporal'));
             
-            // Esperar un poco para simular validación
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            console.log('[VALIDAR] Blob recibido:', blob);
+            console.log('[VALIDAR] Blob size:', blob ? blob.size : 'NO HAY BLOB');
+            console.log('[VALIDAR] Usuario ID:', datosTemporales.usuario.id);
 
-            // Si llegamos aquí, la validación fue exitosa
-            setEstado('exito');
-            setMensaje('Identidad verificada correctamente');
+            if (!blob) {
+                throw new Error('No se capturó imagen facial');
+            }
 
-            // Guardar sesión
-            login(datosTemporales.usuario, datosTemporales.token);
-            localStorage.removeItem('usuarioTemporal');
+            if (blob.size < 1000) {
+                throw new Error('Imagen muy pequeña: ' + blob.size + ' bytes');
+            }
 
-            setTimeout(() => {
-                if (datosTemporales.usuario.rol === 'admin') {
-                    navigate('/admin');
-                } else {
-                    navigate('/dashboard');
+            // Extraer descriptor facial de la imagen capturada
+            console.log('[VALIDAR] Extrayendo descriptor facial...');
+            const descriptorCapturado = await extraerDescriptorFacial(blob);
+            
+            if (!descriptorCapturado) {
+                throw new Error('No se pudo extraer descriptor facial de la imagen capturada');
+            }
+
+            console.log('[VALIDAR] Descriptor capturado extraído');
+
+            // Obtener descriptor almacenado
+            const descriptorAlmacenado = localStorage.getItem(`descriptor_${datosTemporales.usuario.id}`);
+            
+            if (!descriptorAlmacenado) {
+                console.warn('[VALIDAR] Descriptor almacenado no encontrado, permitiendo login (usuario registrado antes de actualización)');
+                // Si no hay descriptor almacenado, permitir login (usuario registrado antes)
+            } else {
+                // Comparar descriptores
+                const descriptorAlmacenadoArray = JSON.parse(descriptorAlmacenado);
+                const distancia = faceapi.euclideanDistance(descriptorCapturado, descriptorAlmacenadoArray);
+                
+                console.log('[VALIDAR] Distancia euclidiana:', distancia);
+                
+                // Si la distancia es mayor a 0.6, es un rostro diferente
+                if (distancia > 0.6) {
+                    console.error('[VALIDAR] Rostro no coincide. Distancia:', distancia);
+                    throw new Error('Este no es tu rostro. Por favor intenta nuevamente.');
                 }
-            }, 1500);
+                
+                console.log('[VALIDAR] Rostro validado correctamente');
+            }
+
+            // Enviar blob al backend para registro adicional
+            const response = await authService.verificarIdentidad(datosTemporales.usuario.id, blob);
+            
+            console.log('[VALIDAR] Respuesta del servidor:', response);
+
+            if (response && response.data && response.data.token) {
+                setEstado('exito');
+                setMensaje('Identidad verificada correctamente');
+
+                // Guardar sesión con el nuevo token
+                login(response.data.usuario, response.data.token);
+                localStorage.removeItem('usuarioTemporal');
+
+                setTimeout(() => {
+                    if (response.data.usuario.rol === 'admin') {
+                        navigate('/dashboard-admin');
+                    } else {
+                        navigate('/dashboard-usuario');
+                    }
+                }, 1500);
+            } else {
+                throw new Error('Respuesta inválida del servidor');
+            }
 
         } catch (error) {
+            console.error('[VALIDAR] Error en validación DETALLADO:', error);
+            console.error('[VALIDAR] Error response:', error.response);
+            console.error('[VALIDAR] Error message:', error.message);
             setEstado('error');
-            setMensaje('No pudimos verificar tu identidad. Intenta nuevamente.');
+            setMensaje(error.response?.data?.error || error.message || 'No pudimos verificar tu identidad. Intenta nuevamente.');
         }
+    };
+
+    const extraerDescriptorFacial = async (blob) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    const img = new Image();
+                    img.onload = async () => {
+                        const detections = await faceapi
+                            .detectAllFaces(img, new faceapi.SsdMobilenetv1Options())
+                            .withFaceLandmarks()
+                            .withFaceDescriptors();
+                        
+                        if (detections.length > 0) {
+                            console.log('[VALIDAR] Descriptor de rostro extraído');
+                            resolve(detections[0].descriptor);
+                        } else {
+                            reject(new Error('No se detectó rostro en la imagen'));
+                        }
+                    };
+                    img.src = event.target.result;
+                } catch (error) {
+                    reject(error);
+                }
+            };
+            reader.readAsDataURL(blob);
+        });
     };
 
     return (

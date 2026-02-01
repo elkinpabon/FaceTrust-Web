@@ -18,4 +18,7 @@ router.get('/:usuarioId', verificarToken, verificarAdmin, UsuarioController.obte
 // Eliminar usuario (solo admin)
 router.delete('/:usuarioId', verificarToken, verificarAdmin, UsuarioController.eliminar);
 
+// Cambiar rol de usuario (solo admin)
+router.put('/:usuarioId/rol', verificarToken, verificarAdmin, UsuarioController.cambiarRol);
+
 module.exports = router;
