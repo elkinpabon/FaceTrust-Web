@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
 import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
@@ -12,6 +12,7 @@ const Registro = () => {
     const [paso, setPaso] = useState(1);
     const [error, setError] = useState('');
     const [cargando, setCargando] = useState(false);
+    const [procesando, setProcesando] = useState(false);
     const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
     const [registroExitoso, setRegistroExitoso] = useState(false);
     const [validacionContraseña, setValidacionContraseña] = useState({
@@ -47,6 +48,14 @@ const Registro = () => {
         }
     };
 
+    // Limpiar localStorage cuando salga del componente
+    useEffect(() => {
+        return () => {
+            console.log('[REGISTRO] Limpiando datos temporales al salir');
+            localStorage.removeItem('datosRegistroTemp');
+        };
+    }, []);
+
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
         setError('');
@@ -79,12 +88,9 @@ const Registro = () => {
 
         try {
             // PASO 1: Solo valida datos (SIN crear usuario en BD)
-            console.log('[REGISTRO PASO 1] Validando formulario...');
             await authService.registro(formData);
-            console.log('[REGISTRO PASO 1] ✓ Datos validados correctamente');
-            // Guardar datos en localStorage para usarlos en paso 2
+            console.log('[REGISTRO] Paso 1: Validación exitosa');
             localStorage.setItem('datosRegistroTemp', JSON.stringify(formData));
-            console.log('[REGISTRO PASO 1] Datos guardados temporalmente para escaneo');
             setPaso(2);
         } catch (err) {
             setError(err.response?.data?.error || 'Error al validar formulario');
@@ -94,6 +100,12 @@ const Registro = () => {
     };
 
     const handleCapturarRostro = async (blob) => {
+        // Bloquear si ya se está procesando
+        if (procesando) {
+            return;
+        }
+
+        setProcesando(true);
         setCargando(true);
         setError('');
 
@@ -102,46 +114,34 @@ const Registro = () => {
                 throw new Error('No se capturó imagen del rostro');
             }
             
-            // Recuperar datos del localStorage
             const datosTemp = localStorage.getItem('datosRegistroTemp');
             if (!datosTemp) {
                 throw new Error('Datos del formulario no encontrados');
             }
             const datosFormulario = JSON.parse(datosTemp);
             
-            console.log('[REGISTRO PASO 2] Escaneo facial detectado');
-            console.log('[REGISTRO PASO 2] Blob size:', blob.size);
-            console.log('[REGISTRO PASO 2] Enviando imagen + datos al backend...');
+            console.log('[REGISTRO] Enviando blob (' + blob.size + ' bytes)...');
+            const tiempoInicio = Date.now();
             
-            // PASO 2: Envía datos + imagen
             const response = await authService.guardarImagenFacial(datosFormulario, blob);
-            console.log('[REGISTRO PASO 2] ✓ Respuesta del servidor:', response.data);
+            const tiempoTotal = Date.now() - tiempoInicio;
+            console.log('[REGISTRO] ✓ Completado en ' + tiempoTotal + 'ms');
 
-            // Extraer descriptor facial
-            console.log('[REGISTRO PASO 2] Extrayendo descriptor facial...');
             const descriptorFacial = await extraerDescriptorFacial(blob);
             const usuarioId = response.data.usuarioId;
             
             if (descriptorFacial && usuarioId) {
-                console.log('[REGISTRO PASO 2] Guardando descriptor en localStorage...');
                 localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
-                console.log('[REGISTRO PASO 2] Descriptor guardado');
-            } else {
-                console.warn('[REGISTRO PASO 2] No se extrajo descriptor o falta usuarioId');
             }
 
-            console.log('[REGISTRO PASO 2] ✓ Registro completado exitosamente');
-            // Limpiar datos temporales
-            localStorage.removeItem('datosRegistroTemp');
             setRegistroExitoso(true);
         } catch (err) {
-            console.error('[REGISTRO] Error completo:', err);
-            console.error('[REGISTRO] Error response:', err.response);
-            console.error('[REGISTRO] Error message:', err.message);
-            const mensajeError = err.response?.data?.error || err.message || 'Error al guardar imagen facial';
-            console.log('[REGISTRO] Mostrando error:', mensajeError);
+            console.error('[REGISTRO] Error:', err.message);
+            const mensajeError = err.response?.data?.error || err.message || 'Error en el registro';
             setError(mensajeError);
+        } finally {
             setCargando(false);
+            setProcesando(false);
         }
     };
 
@@ -468,7 +468,7 @@ const Registro = () => {
                                     onCapture={handleCapturarRostro} 
                                     titulo="Captura tu Rostro"
                                     nombreUsuario={`${formData.nombre} ${formData.apellido}`}
-                                    activo={!registroExitoso}
+                                    activo={!registroExitoso && !procesando}
                                 />
                             </div>
                         </div>

@@ -9,9 +9,11 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     const streamRef = useRef(null);
     const lastCaptureTimeRef = useRef(0);
     const isDetectingRef = useRef(false);
+    const timeoutManualRef = useRef(null);
     
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [rostroDetectado, setRostroDetectado] = useState(false);
+    const [mostrarBotonManual, setMostrarBotonManual] = useState(false);
     const [cargando, setCargando] = useState(true);
 
     // Cargar modelos de face-api
@@ -87,24 +89,32 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     canvas.height = video.videoHeight;
                     const ctx = canvas.getContext('2d');
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
                     if (detections.length > 0) {
-                        console.log('[DETECT] Rostro detectado:', detections.length);
                         setRostroDetectado(true);
                         
-                        // Dibujar detecciones
                         faceapi.draw.drawDetections(canvas, detections);
                         faceapi.draw.drawFaceLandmarks(canvas, detections);
 
-                        // Captura automática si está habilitada y no se capturó recientemente
+                        // Iniciar timeout de 5 segundos si no estaba activo
+                        if (!timeoutManualRef.current) {
+                            timeoutManualRef.current = setTimeout(() => {
+                                setMostrarBotonManual(true);
+                                timeoutManualRef.current = null;
+                            }, 5000);
+                        }
+
                         const ahora = Date.now();
-                        if (autoCapture && (ahora - lastCaptureTimeRef.current) > 1500) {
-                            console.log('[CAPTURE] Capturando automáticamente...');
+                        if (autoCapture && activo && (ahora - lastCaptureTimeRef.current) > 1500) {
                             lastCaptureTimeRef.current = ahora;
                             capturarRostroAutomatico();
                         }
                     } else {
                         setRostroDetectado(false);
+                        setMostrarBotonManual(false);
+                        if (timeoutManualRef.current) {
+                            clearTimeout(timeoutManualRef.current);
+                            timeoutManualRef.current = null;
+                        }
                     }
                 }
             } catch (error) {
@@ -117,12 +127,9 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
     const capturarRostroAutomatico = useCallback(() => {
         if (!videoRef.current) {
-            console.error('[CAPTURE] videoRef no disponible');
+            console.error('[CAMERA] Video no disponible');
             return;
         }
-
-        console.log('[CAPTURE] Capturando rostro...');
-        console.log('[CAPTURE] onCapture disponible:', typeof onCapture === 'function');
 
         try {
             const canvas = document.createElement('canvas');
@@ -130,46 +137,42 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
             canvas.height = videoRef.current.videoHeight;
 
             if (canvas.width === 0 || canvas.height === 0) {
-                console.error('[CAPTURE] Dimensiones del video inválidas');
+                console.error('[CAMERA] Dimensiones inválidas');
                 return;
             }
 
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoRef.current, 0, 0);
 
-            // Usar toDataURL (más rápido con cámaras externas) y convertir a blob
             const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
             
+            // Limpiar botón manual y timeout
+            setMostrarBotonManual(false);
+            if (timeoutManualRef.current) {
+                clearTimeout(timeoutManualRef.current);
+                timeoutManualRef.current = null;
+            }
+
             fetch(dataUrl)
                 .then(res => res.blob())
                 .then(blob => {
-                    console.log('[CAPTURE] Blob creado:', blob ? blob.size + ' bytes' : 'NULL');
-                    if (blob) {
-                        if (typeof onCapture === 'function') {
-                            console.log('[CAPTURE] Ejecutando onCapture...');
-                            onCapture(blob);
-                        } else {
-                            console.error('[CAPTURE] onCapture NO es función:', typeof onCapture);
-                        }
-                    } else {
-                        console.error('[CAPTURE] Error: blob es NULL');
+                    if (blob && typeof onCapture === 'function') {
+                        onCapture(blob);
                     }
                 })
                 .catch(err => {
-                    console.error('[CAPTURE] Error en fetch/blob:', err);
+                    console.error('[CAPTURE] Error:', err.message);
                 });
         } catch (error) {
-            console.error('[CAPTURE] Error en captura:', error);
+            console.error('[CAPTURE] Error:', error.message);
         }
     }, [onCapture]);
 
     const iniciarCamara = useCallback(async () => {
         try {
-            console.log('[CAMERA] Iniciando cámara...');
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { width: { ideal: 640 }, height: { ideal: 480 } }
             });
-            console.log('[CAMERA] Stream obtenido:', stream.getTracks().length, 'tracks');
             streamRef.current = stream;
             
             if (videoRef.current) {
@@ -205,6 +208,10 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
         return () => {
             detenerCamara();
+            if (timeoutManualRef.current) {
+                clearTimeout(timeoutManualRef.current);
+                timeoutManualRef.current = null;
+            }
         };
     }, [modelsLoaded, activo, iniciarCamara, detenerCamara]);
 
@@ -268,6 +275,15 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     {rostroDetectado ? '✓ Rostro detectado correctamente - Capturando...' : 'Acerca tu rostro a la cámara'}
                 </div>
             </div>
+
+            {mostrarBotonManual && (
+                <button
+                    onClick={capturarRostroAutomatico}
+                    className="capture-button-manual"
+                >
+                    Capturar Ahora
+                </button>
+            )}
 
             {!autoCapture && (
                 <button
