@@ -7,13 +7,10 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     const canvasRef = useRef(null);
     const detectIntervalRef = useRef(null);
     const streamRef = useRef(null);
-    const lastCaptureTimeRef = useRef(0);
     const isDetectingRef = useRef(false);
-    const timeoutManualRef = useRef(null);
     
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [rostroDetectado, setRostroDetectado] = useState(false);
-    const [mostrarBotonManual, setMostrarBotonManual] = useState(false);
     const [cargando, setCargando] = useState(true);
 
     // Cargar modelos de face-api
@@ -91,30 +88,10 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     if (detections.length > 0) {
                         setRostroDetectado(true);
-                        
                         faceapi.draw.drawDetections(canvas, detections);
                         faceapi.draw.drawFaceLandmarks(canvas, detections);
-
-                        // Iniciar timeout de 5 segundos si no estaba activo
-                        if (!timeoutManualRef.current) {
-                            timeoutManualRef.current = setTimeout(() => {
-                                setMostrarBotonManual(true);
-                                timeoutManualRef.current = null;
-                            }, 5000);
-                        }
-
-                        const ahora = Date.now();
-                        if (autoCapture && activo && (ahora - lastCaptureTimeRef.current) > 1500) {
-                            lastCaptureTimeRef.current = ahora;
-                            capturarRostroAutomatico();
-                        }
                     } else {
                         setRostroDetectado(false);
-                        setMostrarBotonManual(false);
-                        if (timeoutManualRef.current) {
-                            clearTimeout(timeoutManualRef.current);
-                            timeoutManualRef.current = null;
-                        }
                     }
                 }
             } catch (error) {
@@ -146,13 +123,6 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
             const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
             
-            // Limpiar botón manual y timeout
-            setMostrarBotonManual(false);
-            if (timeoutManualRef.current) {
-                clearTimeout(timeoutManualRef.current);
-                timeoutManualRef.current = null;
-            }
-
             fetch(dataUrl)
                 .then(res => res.blob())
                 .then(blob => {
@@ -208,10 +178,6 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
 
         return () => {
             detenerCamara();
-            if (timeoutManualRef.current) {
-                clearTimeout(timeoutManualRef.current);
-                timeoutManualRef.current = null;
-            }
         };
     }, [modelsLoaded, activo, iniciarCamara, detenerCamara]);
 
@@ -276,7 +242,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 </div>
             </div>
 
-            {mostrarBotonManual && (
+            {rostroDetectado && (
                 <button
                     onClick={capturarRostroAutomatico}
                     className="capture-button-manual"
