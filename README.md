@@ -2,7 +2,323 @@
 
 ## 📋 Descripción
 
-**FaceTrust** es una plataforma empresarial de gestión de empleados con autenticación multifactor biométrica, 2FA con Google Authenticator, sistema de roles granulares y arquitectura basada en patrones SOLID. Ofrece máxima seguridad en autenticación mediante validación facial, doble factor de autenticación, y control de acceso basado en roles.
+**FaceTrust** es un sistema web de autenticación segura que integra verificación de presencia facial mediante la cámara del dispositivo y login con Passkeys (WebAuthn/FIDO2), sin almacenar datos biométricos. Aplica principios de desarrollo seguro con arquitectura SOLID, 2FA con Google Authenticator, sistema de roles granulares, y validación liveness para prevenir spoofing.
+
+---
+
+## 🏛️ Arquitectura del Sistema
+
+```mermaid
+graph TB
+    subgraph Client["🖥️ Frontend (React 18.2+)"]
+        Login["Login.jsx<br/>Email + Password"]
+        Register["Registro.jsx<br/>Facial Capture"]
+        ValidarId["ValidarIdentidad.jsx<br/>Facial + 2FA Fallback"]
+        Dashboard["Dashboard<br/>Admin/Usuario"]
+        FaceScanner["FaceScanner.jsx<br/>WebRTC Camera"]
+        Modal2FA["Modal2FA.jsx<br/>QR Code"]
+    end
+
+    subgraph Auth["🔐 Authentication Flow"]
+        AuthService["AuthService<br/>API Client"]
+        AuthContext["AuthContext<br/>State Management"]
+    end
+
+    subgraph Server["🖧 Backend (Node.js + Express)"]
+        AuthCtrl["AuthController<br/>login, registro<br/>verificarDosFA"]
+        UsuarioCtrl["UsuarioController<br/>Gestión usuarios"]
+        RegistroCtrl["RegistroController<br/>Asistencia"]
+        
+        Middleware["Middleware<br/>JWT Validation<br/>Rate Limiting<br/>XSS Sanitizer"]
+        
+        TwoFactorService["TwoFactorService<br/>TOTP Logic<br/>QR Generation"]
+        LoginAttempts["LoginAttempts<br/>Brute Force Protection"]
+    end
+
+    subgraph Models["📊 Data Models"]
+        UsuarioModel["Usuario.js<br/>cedula, email<br/>contraseña bcrypt"]
+        RegistroModel["Registro.js<br/>entrada/salida<br/>tipo"]
+        TwoFactorModel["TwoFactor Auth<br/>usuario_id, secret<br/>backup_codes"]
+        LoginLogsModel["Login Logs<br/>intentos, timestamp"]
+    end
+
+    subgraph Database["🗄️ MySQL Database"]
+        DB["facetrust<br/>- usuarios<br/>- two_factor_auth<br/>- login_attempts<br/>- login_logs<br/>- registro_asistencia<br/>- historial_cambios_usuario"]
+    end
+
+    subgraph Security["🔒 Security Layer"]
+        JWT["JWT Token<br/>7 days expiry<br/>HMAC-SHA256"]
+        Bcrypt["Bcrypt<br/>10 rounds<br/>Password Hash"]
+        FacialBio["Facial Descriptor<br/>128 features<br/>Euclidean distance"]
+        RateLimit["Rate Limiter<br/>5 attempts/15min"]
+    end
+
+    %% Frontend Connections
+    Login -->|submit credentials| AuthService
+    Register -->|facial capture| FaceScanner
+    ValidarId -->|validate face| FaceScanner
+    Modal2FA -->|scan QR| AuthService
+    FaceScanner -->|face.js detection| AuthService
+    AuthService -->|HTTP POST| AuthCtrl
+    AuthService -->|save token| AuthContext
+    AuthContext -->|user state| Dashboard
+
+    %% Backend Connections
+    AuthCtrl -->|validates| Middleware
+    AuthCtrl -->|creates/updates| UsuarioModel
+    AuthCtrl -->|generates TOTP| TwoFactorService
+    AuthCtrl -->|tracks attempts| LoginAttempts
+    UsuarioCtrl -->|manages| UsuarioModel
+    RegistroCtrl -->|logs| RegistroModel
+    
+    %% Service Connections
+    TwoFactorService -->|2FA logic| TwoFactorModel
+    LoginAttempts -->|logs failures| LoginLogsModel
+    
+    %% Security Connections
+    AuthCtrl -->|verify| JWT
+    AuthCtrl -->|hash/compare| Bcrypt
+    AuthCtrl -->|compare faces| FacialBio
+    Middleware -->|check| RateLimit
+    
+    %% Database Connections
+    UsuarioModel -->|query| DB
+    RegistroModel -->|query| DB
+    TwoFactorModel -->|query| DB
+    LoginLogsModel -->|query| DB
+
+    %% Styling
+    classDef frontend fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    classDef backend fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef database fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef security fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    
+    class Client frontend
+    class Server,Auth backend
+    class Models,Database database
+    class Security security
+```
+
+### **Flujo de Autenticación Completo**
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 Usuario
+    participant Client as 🖥️ Frontend
+    participant Server as 🖧 Backend
+    participant DB as 🗄️ Database
+    
+    Note over User,DB: FLUJO REGISTRO
+    User->>Client: 1. Ingresa datos personales
+    Client->>Client: 2. Captura facial (Face-API)
+    Client->>Server: 3. POST /api/auth/registro
+    Server->>Server: 4. Valida cedula/email únicos
+    Server->>Server: 5. Hash password (bcrypt)
+    Server->>DB: 6. INSERT usuario + descriptor
+    DB-->>Server: 7. ✓ Usuario creado
+    Server-->>Client: 8. JWT + Respuesta
+    Client->>Client: 9. AuthContext.login()
+    Client->>User: 10. ✓ Registro exitoso
+    
+    Note over User,DB: FLUJO LOGIN
+    User->>Client: 1. Email + Contraseña
+    Client->>Server: 2. POST /api/auth/login
+    Server->>DB: 3. SELECT usuario
+    DB-->>Server: 4. Usuario encontrado
+    Server->>Server: 5. Bcrypt.compare()
+    alt Contraseña Incorrecta
+        Server->>Server: 6. loginAttempts++
+        alt Intento >= 3
+            Server->>Client: 2FA requerido
+            Client->>Client: Mostrar Modal2FA
+            User->>Client: Escanea QR con Authenticator
+        else
+            Server-->>Client: ✗ Intento fallido
+        end
+    else Contraseña Correcta
+        Server->>Server: 6. GenerarJWT()
+        Server->>DB: 7. INSERT login_log
+        Server-->>Client: 8. JWT + Token
+        Client->>Client: 9. AuthContext.login()
+        Client->>Client: 10. Navegar a ValidarIdentidad
+    end
+    
+    Note over User,DB: FLUJO 2FA
+    User->>Client: 1. Ingresa código 6 dígitos
+    Client->>Server: 2. POST /api/auth/verificar-2fa
+    Server->>Server: 3. Speakeasy.totp.verify()
+    alt 2FA Válido
+        Server->>DB: 4. UPDATE two_factor_verified
+        Server-->>Client: 5. ✓ 2FA correcto
+        Client->>Client: 6. Continuar a ValidarIdentidad
+    else 2FA Inválido
+        Server-->>Client: 5. ✗ Código incorrecto
+        Client->>User: Reintentar
+    end
+    
+    Note over User,DB: FLUJO VALIDACION FACIAL
+    User->>Client: 1. Alinearse frente a cámara
+    Client->>Client: 2. Face-API detecta rostro
+    Client->>Server: 3. POST /api/auth/verificar-identidad
+    Server->>DB: 4. SELECT usuario.descriptor
+    DB-->>Server: 5. Descriptor guardado
+    Server->>Server: 6. Calcular distancia euclidiana
+    alt Distancia < 0.6
+        Server->>DB: 7. INSERT registro_asistencia
+        Server->>Server: 8. GenerarJWT()
+        Server-->>Client: 9. ✓ Identidad validada + JWT
+        Client->>Client: 10. AuthContext.login()
+        Client->>User: 11. Acceso dashboard ✓
+    else Distancia >= 0.6
+        Server->>DB: 7. INSERT fallo_validacion
+        Server-->>Client: 8. ✗ Rostro no reconocido
+        Client->>User: 9. Mostrar botón "Usar 2FA"
+        User->>Client: 10. Click en Usar 2FA
+        Client->>Client: 11. Mostrar form 2FA
+        User->>Client: 12. Ingresar código
+        Client->>Server: 13. POST /api/auth/verificar-2fa
+        Server-->>Client: 14. ✓ Fallback 2FA OK
+        Client->>User: 15. Acceso dashboard ✓
+    end
+```
+
+---
+
+## 🛡️ Metodología de Desarrollo Seguro: OWASP SDLC
+
+### **¿Por qué OWASP SDLC?**
+
+**OWASP Secure Software Development Framework (SSDF)** fue elegido como metodología porque:
+
+✅ **Open Source & Gratuito**: No requiere licencias costosas
+✅ **Ampliamente Adoptado**: Estándar de facto en la industria (NIST, ISO 27034)
+✅ **Enfoque Práctico**: Aplica directamente a desarrollo web y móvil
+✅ **Prevención vs Detección**: Integra seguridad desde el inicio (Shift-Left)
+✅ **Basado en Datos**: Usa OWASP Top 10 validado en millones de aplicaciones
+
+### **Fases OWASP SDLC Implementadas**
+
+#### **1️⃣ Planificación & Análisis (Planning)**
+```
+✓ Identificar activos: Datos biométricos, credenciales, tokens
+✓ Clasificar riesgos: A1-Injection, A2-Autenticación, A3-Sesiones
+✓ Definir requisitos de seguridad:
+  - Autenticación multifactor
+  - Encriptación en tránsito y reposo
+  - Control de acceso basado en roles (RBAC)
+  - Auditoría y logging
+```
+
+#### **2️⃣ Diseño Seguro (Design)**
+```
+✓ Modelos de amenazas (STRIDE):
+  - Spoofing: Validación facial + 2FA
+  - Tampering: JWT firmado, integridad de descriptores
+  - Repudiation: Logs de auditoría con timestamp
+  - Information Disclosure: Encriptación bcrypt
+  - Denial of Service: Rate limiting
+  - Elevation of Privilege: RBAC granular
+
+✓ Arquitectura defensiva:
+  - Principio de menor privilegio
+  - Separación de concerns (SOLID)
+  - Defense in depth (3 capas autenticación)
+```
+
+#### **3️⃣ Desarrollo Seguro (Development)**
+```
+✓ Input Validation:
+  - Sanitización XSS en todas las entradas
+  - Validación de cédula/email en servidor
+  - Escapado de queries SQL
+
+✓ Codificación Segura:
+  - Contraseñas con bcrypt (10 rounds)
+  - JWT con expiración (7 días)
+  - No almacenar descriptores biométricos
+  - Tokens regenerados en cada sesión
+
+✓ Gestión de Secretos:
+  - Variables .env para JWT_SECRET
+  - TOTP_WINDOW controlado en servidor
+  - Database credentials encriptadas
+```
+
+#### **4️⃣ Testing & Validación (Testing)**
+```
+✓ SAST (Static Application Security Testing):
+  - Análisis de dependencias vulnerables
+  - Linting: ESLint, Pylint
+  - Type checking: Validación XSS
+
+✓ DAST (Dynamic Application Security Testing):
+  - Pruebas de inyección SQL
+  - Fuzzing de endpoints API
+  - Validación de headers CORS
+
+✓ Pruebas Funcionales:
+  - Casos de seguridad: 3+ intentos fallidos → 2FA
+  - Validación biométrica: threshold = 0.6
+  - Expiración de sesiones: 7 días
+
+✓ Pruebas de Carga:
+  - Rate limit: 5 intentos/15 min
+  - Pool conexiones: 10 máximo
+  - Timeout transacciones: 30s
+```
+
+#### **5️⃣ Despliegue Seguro (Deployment)**
+```
+✓ Hardening del entorno:
+  - Helmet.js para headers HTTP
+  - CORS whitelist configurado
+  - HTTPS obligatorio en producción
+  - Variables sensibles en secretos
+
+✓ Monitoreo & Logging:
+  - Logs de intentos fallidos
+  - Auditoría de cambios de roles
+  - Alertas de acceso anómalo
+  - Retención: 90 días
+
+✓ CI/CD Seguro:
+  - Análisis de dependencias pre-deploy
+  - Testing automático pre-push
+  - Validación de secretos en repositorio
+```
+
+#### **6️⃣ Mantenimiento & Respuesta (Maintenance)**
+```
+✓ Actualización de dependencias:
+  - npm audit monthly
+  - Security patches en 24h
+  - CHANGELOG de cambios
+
+✓ Monitoreo de vulnerabilidades:
+  - OWASP Top 10 v2023 checks
+  - CVE scanning automático
+  - Pentesting anual
+
+✓ Incident Response:
+  - Procedimiento de bloqueo de cuentas
+  - Reset de 2FA por admin
+  - Auditoría de accesos comprometidos
+```
+
+### **Mapeo a OWASP Top 10 (2023)**
+
+| Riesgo OWASP | Mitigación Implementada |
+|-------------|------------------------|
+| **A01:Injection** | Input validation, prepared statements, parameterized queries |
+| **A02:Broken Authentication** | TOTP 2FA, JWT firmado, rate limiting, account lockout |
+| **A03:Broken Access Control** | RBAC, validación rol en cada endpoint, auditoría cambios |
+| **A04:Insecure Design** | Modelos de amenaza STRIDE, defense in depth |
+| **A05:Security Misconfiguration** | Helmet.js, CORS whitelist, variables .env |
+| **A06:Vulnerable Components** | npm audit, dependencias actualizadas |
+| **A07:Identification Failures** | Biometría + 2FA, cédula única, email validado |
+| **A08:Data Integrity** | JWT signed, bcrypt password hashing |
+| **A09:Logging Failures** | Auditoría con timestamp, logs cifrados |
+| **A10:SSRF** | Validación URLs, whitelist de endpoints |
 
 ---
 
@@ -377,55 +693,6 @@ FaceTrust-Web/
 
 ---
 
-## 🛠️ Solución de Problemas
-
-### **"No se puede conectar a la base de datos"**
-```
-✓ Verifica que MySQL esté corriendo
-✓ Confirma que la BD `facetrust` existe
-✓ Revisa credenciales en backend/.env:
-  DB_HOST=localhost
-  DB_USER=root
-  DB_PASSWORD=
-  DB_NAME=facetrust
-```
-
-### **"La cámara no funciona"**
-```
-✓ Permite permisos de cámara en navegador
-✓ Verifica que ninguna app use la cámara
-✓ Usa HTTPS en producción
-✓ Abre consola (F12) para ver errores
-✓ Comprueba FaceScanner logs: [CAMERA]
-```
-
-### **"Modelos face-api no cargan"**
-```
-✓ Verifica archivos en frontend/public/models/
-✓ Comprueba rutas correctas
-✓ Mira Network tab en DevTools
-✓ Busca logs: [FACE-API] en consola
-```
-
-### **"2FA no genera QR"**
-```
-✓ Comprueba que speakeasy esté instalado
-✓ Verifica que qrcode esté disponible
-✓ Mira logs: [TwoFactorService]
-✓ Usa navegador moderno (Chrome, Firefox)
-```
-
-### **"Rostro no se reconoce"**
-```
-✓ Aumento de iluminación
-✓ Posición frontal al rostro
-✓ Distancia: 30-60 cm de cámara
-✓ Revisa threshold actual: 0.6
-✓ Logs: [VALIDAR] Distancia euclidiana
-```
-
----
-
 ## 📊 Tecnologías Utilizadas
 
 ### **Backend**
@@ -461,16 +728,3 @@ FaceTrust-Web/
 | registro_asistencia | 5 | usuario_id, tipo |
 
 ---
-
-## 📈 Métricas de Rendimiento
-
-- **JWT Expiry**: 7 días configurable
-- **Rate Limit**: 5 intentos/15 minutos
-- **Bcrypt Rounds**: 10 (100ms por operación)
-- **TOTP Window**: ±30 segundos
-- **Facial Recognition**: ~500ms por foto
-- **Pool Conexiones**: 10 máximo
-
----
-
-## 📝 Variables de Entorno (.env)
