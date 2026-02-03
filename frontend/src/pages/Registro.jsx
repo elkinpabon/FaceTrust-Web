@@ -14,6 +14,12 @@ const Registro = () => {
     const [cargando, setCargando] = useState(false);
     const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
     const [registroExitoso, setRegistroExitoso] = useState(false);
+    const [validacionContraseña, setValidacionContraseña] = useState({
+        longitud: false,
+        mayuscula: false,
+        numero: false,
+        especial: false
+    });
     const navigate = useNavigate();
 
     const [formData, setFormData] = useState({
@@ -29,11 +35,46 @@ const Registro = () => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+        
+        // Validar contraseña en tiempo real
+        if (name === 'contraseña') {
+            setValidacionContraseña({
+                longitud: value.length >= 8,
+                mayuscula: /[A-Z]/.test(value),
+                numero: /\d/.test(value),
+                especial: /[@$!%*?&]/.test(value)
+            });
+        }
     };
 
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
         setError('');
+        
+        // Validar contraseña antes de enviar
+        const contraseña = formData.contraseña;
+        if (contraseña.length < 8) {
+            setError('La contraseña debe tener mínimo 8 caracteres');
+            return;
+        }
+        
+        if (!/[A-Z]/.test(contraseña)) {
+            setError('La contraseña debe contener al menos una letra mayúscula');
+            return;
+        }
+        
+        if (!/\d/.test(contraseña)) {
+            setError('La contraseña debe contener al menos un número');
+            return;
+        }
+        
+        // En desarrollo acepta cualquier carácter especial, en producción solo los específicos
+        const esProduccion = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+        if (esProduccion && !/[@$!%*?&]/.test(contraseña)) {
+            setError('La contraseña debe contener un carácter especial (@$!%*?&)');
+            return;
+        }
+        
         setCargando(true);
 
         try {
@@ -245,6 +286,53 @@ const Registro = () => {
                                 />
                                 <span className="input-icon">●</span>
                             </div>
+                            
+                            {/* Validación de contraseña en tiempo real */}
+                            {formData.contraseña && (
+                                <>
+                                    {/* Barra de fortaleza */}
+                                    <div className="strength-bar">
+                                        <div 
+                                            className={`strength-fill ${
+                                                Object.values(validacionContraseña).filter(Boolean).length <= 1 ? 'weak' : 
+                                                Object.values(validacionContraseña).filter(Boolean).length <= 2 ? 'fair' : 
+                                                Object.values(validacionContraseña).filter(Boolean).length <= 3 ? 'good' : 
+                                                'strong'
+                                            }`}
+                                            style={{
+                                                width: `${(Object.values(validacionContraseña).filter(Boolean).length / 4) * 100}%`
+                                            }}
+                                        />
+                                    </div>
+                                    <p className="strength-text">
+                                        {Object.values(validacionContraseña).filter(Boolean).length === 0 && 'Muy débil'}
+                                        {Object.values(validacionContraseña).filter(Boolean).length === 1 && 'Débil'}
+                                        {Object.values(validacionContraseña).filter(Boolean).length === 2 && 'Aceptable'}
+                                        {Object.values(validacionContraseña).filter(Boolean).length === 3 && 'Buena'}
+                                        {Object.values(validacionContraseña).filter(Boolean).length === 4 && '¡Excelente!'}
+                                    </p>
+                                    
+                                    {/* Checklist de requisitos */}
+                                    <div className="password-validation">
+                                        <div className={`validation-item ${validacionContraseña.longitud ? 'valid' : 'invalid'}`}>
+                                            <span className="check-icon">{validacionContraseña.longitud ? '✓' : '✗'}</span>
+                                            <span>Mínimo 8 caracteres</span>
+                                        </div>
+                                        <div className={`validation-item ${validacionContraseña.mayuscula ? 'valid' : 'invalid'}`}>
+                                            <span className="check-icon">{validacionContraseña.mayuscula ? '✓' : '✗'}</span>
+                                            <span>Una letra mayúscula (A-Z)</span>
+                                        </div>
+                                        <div className={`validation-item ${validacionContraseña.numero ? 'valid' : 'invalid'}`}>
+                                            <span className="check-icon">{validacionContraseña.numero ? '✓' : '✗'}</span>
+                                            <span>Un número (0-9)</span>
+                                        </div>
+                                        <div className={`validation-item ${validacionContraseña.especial ? 'valid' : 'invalid'}`}>
+                                            <span className="check-icon">{validacionContraseña.especial ? '✓' : '✗'}</span>
+                                            <span>Un carácter especial (@$!%*?&)</span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
                         <div className="form-row">

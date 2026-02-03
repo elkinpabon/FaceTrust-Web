@@ -42,9 +42,17 @@ class AuthController {
                 regexContraseña = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
                 mensajeError = 'La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales (@$!%*?&)';
             } else {
-                // Desarrollo: solo requiere 8 caracteres, 1 mayúscula y 1 número
+                // Desarrollo: requiere mayúscula y número
                 regexContraseña = /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
-                mensajeError = 'La contraseña debe tener mínimo 8 caracteres, 1 mayúscula y 1 número';
+                
+                // Mensaje de error específico
+                if (!/[A-Z]/.test(contraseña)) {
+                    mensajeError = 'La contraseña debe contener al menos una letra mayúscula (A-Z)';
+                } else if (!/\d/.test(contraseña)) {
+                    mensajeError = 'La contraseña debe contener al menos un número (0-9)';
+                } else {
+                    mensajeError = 'La contraseña no cumple los requisitos mínimos';
+                }
             }
             
             if (!regexContraseña.test(contraseña)) {
