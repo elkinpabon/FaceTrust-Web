@@ -86,21 +86,19 @@ class AuthController {
                 return res.status(400).json({ error: 'La cédula ya está registrada' });
             }
 
-            // Crear usuario con datos sanitizados
-            const resultado = await Usuario.crear({
-                nombre: nombreSanitizado,
-                apellido: apellidoSanitizado,
-                cedula: cedulaSanitizado,
-                correo: correoSanitizado,
-                contraseña,
-                telefono: telefono ? xss(telefono.trim()) : '',
-                direccion: direccion ? xss(direccion.trim()) : '',
-                rol: 'usuario'
-            });
-
-            return res.status(201).json({
-                mensaje: 'Usuario registrado exitosamente',
-                usuarioId: resultado.insertId
+            // NO crear usuario aquí - solo validar
+            // El usuario se crea cuando se confirme con escaneo facial
+            return res.json({
+                mensaje: 'Datos validados correctamente',
+                datosValidos: true,
+                datosFormulario: {
+                    nombre: nombreSanitizado,
+                    apellido: apellidoSanitizado,
+                    cedula: cedulaSanitizado,
+                    correo: correoSanitizado,
+                    telefono: telefono ? xss(telefono.trim()) : '',
+                    direccion: direccion ? xss(direccion.trim()) : ''
+                }
             });
         } catch (error) {
             console.error('Error en registro:', error);
@@ -247,18 +245,63 @@ class AuthController {
     // Guardar imagen facial
     static async guardarImagenFacial(req, res) {
         try {
-            const { usuarioId } = req.params;
+            // Los datos vienen en un header personalizado (workaround para multer)
+            const datosHeader = req.get('x-registro-datos');
             
             if (!req.file) {
-                return res.status(400).json({ error: 'No se proporcionó imagen' });
+                return res.status(400).json({ error: 'Debes completar el escaneo facial para registrarte' });
             }
 
+            if (!datosHeader) {
+                return res.status(400).json({ error: 'Faltan datos del formulario' });
+            }
+
+            // Decodificar datos del header
+            const datosFormulario = JSON.parse(decodeURIComponent(datosHeader));
+            const { nombre, apellido, cedula, correo, contraseña, telefono, direccion } = datosFormulario;
+            
+            // Validar que tenga datos de usuario
+            if (!nombre || !apellido || !cedula || !correo || !contraseña) {
+                return res.status(400).json({ error: 'Faltan datos requeridos del formulario' });
+            }
+
+            // Sanitizar inputs
+            const nombreSanitizado = xss(nombre.trim());
+            const apellidoSanitizado = xss(apellido.trim());
+            const cedulaSanitizado = xss(cedula.trim());
+            const correoSanitizado = xss(correo.trim().toLowerCase());
+
+            // Doble validación de email único
+            const existe = await Usuario.existeCorreo(correoSanitizado);
+            if (existe) {
+                return res.status(400).json({ error: 'El correo ya está registrado' });
+            }
+
+            // AHORA sí crear usuario (después de validar imagen)
+            const resultado = await Usuario.crear({
+                nombre: nombreSanitizado,
+                apellido: apellidoSanitizado,
+                cedula: cedulaSanitizado,
+                correo: correoSanitizado,
+                contraseña,
+                telefono: telefono ? xss(telefono.trim()) : '',
+                direccion: direccion ? xss(direccion.trim()) : '',
+                rol: 'usuario'
+            });
+
+            const usuarioId = resultado.insertId;
+
+            // Guardar imagen en BD
             await Usuario.guardarImagen(usuarioId, req.file.buffer);
 
-            return res.json({ mensaje: 'Imagen facial guardada exitosamente' });
+            return res.status(201).json({ 
+                mensaje: '¡Registro completado! Tu identidad facial ha sido verificada',
+                usuarioId: usuarioId,
+                registroCompleto: true
+            });
         } catch (error) {
-            console.error('Error al guardar imagen:', error);
-            return res.status(500).json({ error: 'Error al guardar imagen facial' });
+            console.error('Error al completar registro:', error);
+            return res.status(500).json({ error: 'Error al completar el registro' });
         }
     }
 

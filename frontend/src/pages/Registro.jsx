@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
-import { Lightbulb, Maximize2, Smile, CheckCircle, User, Mail, Lock, Phone, MapPin, IdCard } from 'lucide-react';
+import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
 import { authService } from '../services/api.js';
 import FaceScanner from '../components/FaceScanner.jsx';
 import WaveBackground from '../components/WaveBackground.jsx';
@@ -78,11 +78,16 @@ const Registro = () => {
         setCargando(true);
 
         try {
-            const response = await authService.registro(formData);
-            localStorage.setItem('usuarioRegistroId', response.data.usuarioId);
+            // PASO 1: Solo valida datos (SIN crear usuario en BD)
+            console.log('[REGISTRO PASO 1] Validando formulario...');
+            await authService.registro(formData);
+            console.log('[REGISTRO PASO 1] ✓ Datos validados correctamente');
+            // Guardar datos en localStorage para usarlos en paso 2
+            localStorage.setItem('datosRegistroTemp', JSON.stringify(formData));
+            console.log('[REGISTRO PASO 1] Datos guardados temporalmente para escaneo');
             setPaso(2);
         } catch (err) {
-            setError(err.response?.data?.error || 'Error al registrar');
+            setError(err.response?.data?.error || 'Error al validar formulario');
         } finally {
             setCargando(false);
         }
@@ -93,30 +98,41 @@ const Registro = () => {
         setError('');
 
         try {
-            const usuarioId = localStorage.getItem('usuarioRegistroId');
+            if (!blob) {
+                throw new Error('No se capturó imagen del rostro');
+            }
             
-            console.log('[REGISTRO] Iniciando captura para usuario:', usuarioId);
-            console.log('[REGISTRO] Blob size:', blob.size);
+            // Recuperar datos del localStorage
+            const datosTemp = localStorage.getItem('datosRegistroTemp');
+            if (!datosTemp) {
+                throw new Error('Datos del formulario no encontrados');
+            }
+            const datosFormulario = JSON.parse(datosTemp);
             
-            // Guardar imagen
-            console.log('[REGISTRO] Enviando imagen al backend...');
-            const imagenResponse = await authService.guardarImagenFacial(usuarioId, blob);
-            console.log('[REGISTRO] Imagen guardada:', imagenResponse);
+            console.log('[REGISTRO PASO 2] Escaneo facial detectado');
+            console.log('[REGISTRO PASO 2] Blob size:', blob.size);
+            console.log('[REGISTRO PASO 2] Enviando imagen + datos al backend...');
+            
+            // PASO 2: Envía datos + imagen
+            const response = await authService.guardarImagenFacial(datosFormulario, blob);
+            console.log('[REGISTRO PASO 2] ✓ Respuesta del servidor:', response.data);
 
             // Extraer descriptor facial
-            console.log('[REGISTRO] Extrayendo descriptor facial...');
+            console.log('[REGISTRO PASO 2] Extrayendo descriptor facial...');
             const descriptorFacial = await extraerDescriptorFacial(blob);
+            const usuarioId = response.data.usuarioId;
             
-            if (descriptorFacial) {
-                console.log('[REGISTRO] Descriptor extraído, guardando en localStorage...');
+            if (descriptorFacial && usuarioId) {
+                console.log('[REGISTRO PASO 2] Guardando descriptor en localStorage...');
                 localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
-                console.log('[REGISTRO] Descriptor guardado en localStorage');
+                console.log('[REGISTRO PASO 2] Descriptor guardado');
             } else {
-                console.warn('[REGISTRO] No se extrajo descriptor');
+                console.warn('[REGISTRO PASO 2] No se extrajo descriptor o falta usuarioId');
             }
 
-            console.log('[REGISTRO] Registro completado exitosamente');
-            localStorage.removeItem('usuarioRegistroId');
+            console.log('[REGISTRO PASO 2] ✓ Registro completado exitosamente');
+            // Limpiar datos temporales
+            localStorage.removeItem('datosRegistroTemp');
             setRegistroExitoso(true);
         } catch (err) {
             console.error('[REGISTRO] Error completo:', err);

@@ -27,14 +27,14 @@ const registroLimiter = rateLimit({
     skip: (req, res) => process.env.NODE_ENV === 'development', // Desactivar en desarrollo
 });
 
-// Registro
+// Registro - Solo valida datos, NO crea usuario en BD
 router.post('/registro', registroLimiter, AuthController.registro);
 
 // Login
 router.post('/login', loginLimiter, AuthController.login);
 
-// Guardar imagen facial
-router.post('/imagen-facial/:usuarioId', upload.single('imagen'), AuthController.guardarImagenFacial);
+// Guardar imagen facial + crear usuario - requiere escaneo obligatorio
+router.post('/imagen-facial', upload.single('imagen'), registroLimiter, AuthController.guardarImagenFacial);
 
 // Obtener imagen facial
 router.get('/imagen-facial/:usuarioId', AuthController.obtenerImagenFacial);
