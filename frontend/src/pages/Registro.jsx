@@ -56,6 +56,17 @@ const Registro = () => {
         };
     }, []);
 
+    // Navegar cuando registro es exitoso
+    useEffect(() => {
+        if (registroExitoso) {
+            localStorage.removeItem('datosRegistroTemp');
+            const timer = setTimeout(() => {
+                navigate('/login', { replace: true });
+            }, 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [registroExitoso, navigate]);
+
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
         setError('');

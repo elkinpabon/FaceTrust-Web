@@ -8,6 +8,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     const detectIntervalRef = useRef(null);
     const streamRef = useRef(null);
     const isDetectingRef = useRef(false);
+    const capturedRef = useRef(false);
     
     const [modelsLoaded, setModelsLoaded] = useState(false);
     const [rostroDetectado, setRostroDetectado] = useState(false);
@@ -103,6 +104,11 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     }, [modelsLoaded, autoCapture]);
 
     const capturarRostroAutomatico = useCallback(() => {
+        if (capturedRef.current) {
+            console.log('[CAPTURE] Ya se capturó una imagen, ignorando nuevas capturas');
+            return;
+        }
+
         if (!videoRef.current) {
             console.error('[CAMERA] Video no disponible');
             return;
@@ -127,6 +133,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                 .then(res => res.blob())
                 .then(blob => {
                     if (blob && typeof onCapture === 'function') {
+                        capturedRef.current = true;
                         onCapture(blob);
                     }
                 })
@@ -164,13 +171,11 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
     // Iniciar/detener cámara
     useEffect(() => {
         if (!modelsLoaded) {
-            console.log('[SETUP] Esperando a que se carguen los modelos...');
             return;
         }
 
-        console.log('[SETUP] Models cargados, activo:', activo);
-
         if (activo) {
+            capturedRef.current = false;
             iniciarCamara();
         } else {
             detenerCamara();
