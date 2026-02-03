@@ -10,19 +10,21 @@ const upload = multer({ storage });
 // Rate limiting para login
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 5, // Máximo 5 intentos
+    max: process.env.NODE_ENV === 'development' ? 50 : 5, // 50 en dev, 5 en prod
     message: 'Demasiados intentos de login. Intenta de nuevo en 15 minutos',
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Desactivar en desarrollo
 });
 
 // Rate limiting para registro
 const registroLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hora
-    max: 3, // Máximo 3 registros por hora
+    max: process.env.NODE_ENV === 'development' ? 100 : 3, // 100 en dev, 3 en prod
     message: 'Demasiados registros. Intenta de nuevo más tarde',
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req, res) => process.env.NODE_ENV === 'development', // Desactivar en desarrollo
 });
 
 // Registro

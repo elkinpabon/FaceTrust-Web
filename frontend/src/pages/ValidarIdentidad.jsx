@@ -61,9 +61,11 @@ const ValidarIdentidad = () => {
                 const descriptorAlmacenadoArray = JSON.parse(descriptorAlmacenado);
                 const distancia = faceapi.euclideanDistance(descriptorCapturado, descriptorAlmacenadoArray);
                 
-                console.log('[VALIDAR] Distancia euclidiana:', distancia);
+                // Threshold más restrictivo para evitar falsos positivos (lentes, maquillaje, etc)
+                const THRESHOLD = 0.45; // Antes era 0.6 - más preciso
+                console.log('[VALIDAR] Distancia euclidiana:', distancia.toFixed(4), '| Threshold:', THRESHOLD);
                 
-                if (distancia > 0.6) {
+                if (distancia > THRESHOLD) {
                     console.error('[VALIDAR] Rostro no coincide. Distancia:', distancia);
                     
                     try {
@@ -122,12 +124,27 @@ const ValidarIdentidad = () => {
                             .withFaceLandmarks()
                             .withFaceDescriptors();
                         
-                        if (detections.length > 0) {
-                            console.log('[VALIDAR] Descriptor de rostro extraído');
-                            resolve(detections[0].descriptor);
-                        } else {
+                        // VALIDACIÓN ANTI-SPOOFING: Detectar múltiples rostros
+                        if (detections.length === 0) {
                             reject(new Error('No se detectó rostro en la imagen'));
+                            return;
                         }
+                        
+                        if (detections.length > 1) {
+                            console.warn('[VALIDAR] Se detectaron', detections.length, 'rostros');
+                            reject(new Error('Se detectaron múltiples rostros. Por favor, asegúrate de estar solo'));
+                            return;
+                        }
+                        
+                        // Validación de rostro válido (landmarks detectados correctamente)
+                        const landmarks = detections[0].landmarks;
+                        if (!landmarks || landmarks.positions.length < 68) {
+                            reject(new Error('Rostro no detectado correctamente. Asegúrate de estar frente a la cámara'));
+                            return;
+                        }
+                        
+                        console.log('[VALIDAR] Descriptor de rostro extraído con', detections.length, 'rostro(s)');
+                        resolve(detections[0].descriptor);
                     };
                     img.src = event.target.result;
                 } catch (error) {

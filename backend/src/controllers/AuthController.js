@@ -33,12 +33,22 @@ class AuthController {
                 return res.status(400).json({ error: 'La contraseña debe tener mínimo 8 caracteres' });
             }
 
-            // Validar fortaleza de contraseña
-            const regexContraseña = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+            // Validar fortaleza de contraseña (desarrollo: más relajado, producción: más estricto)
+            let regexContraseña;
+            let mensajeError;
+            
+            if (process.env.NODE_ENV === 'production') {
+                // Producción: requiere mayúsculas, minúsculas, números y especiales
+                regexContraseña = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+                mensajeError = 'La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales (@$!%*?&)';
+            } else {
+                // Desarrollo: solo requiere 8 caracteres, 1 mayúscula y 1 número
+                regexContraseña = /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
+                mensajeError = 'La contraseña debe tener mínimo 8 caracteres, 1 mayúscula y 1 número';
+            }
+            
             if (!regexContraseña.test(contraseña)) {
-                return res.status(400).json({ 
-                    error: 'La contraseña debe contener mayúsculas, minúsculas, números y caracteres especiales (@$!%*?&)' 
-                });
+                return res.status(400).json({ error: mensajeError });
             }
 
             // Validar cédula (números solamente)
@@ -46,9 +56,9 @@ class AuthController {
                 return res.status(400).json({ error: 'Cédula inválida (6-12 dígitos)' });
             }
 
-            // Validar nombre (solo letras y espacios)
-            if (!/^[a-záéíóúñ\s]{2,}$/i.test(nombreSanitizado)) {
-                return res.status(400).json({ error: 'Nombre inválido (solo letras y espacios, mínimo 2)' });
+            // Validar nombre (solo letras, espacios y acentos, mínimo 2)
+            if (!/^[a-záéíóúñ\s]{2,}$/i.test(nombreSanitizado) && nombreSanitizado.length < 2) {
+                return res.status(400).json({ error: 'Nombre inválido (mínimo 2 caracteres)' });
             }
 
             // Validar teléfono si se proporciona

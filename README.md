@@ -667,9 +667,12 @@ FaceTrust-Web/
 
 ### **Protecciones Biométricas**
 - ✅ 128 características faciales extraídas
-- ✅ Distancia euclidiana < 0.6 requerida
+- ✅ Distancia euclidiana **< 0.45** (threshold optimizado)
+- ✅ Detección anti-spoofing: solo 1 rostro permitido
+- ✅ Validación de landmarks (68 puntos faciales)
 - ✅ Rechazo automático de identidades falsas
 - ✅ Logging de fallos para auditoría
+- ⚠️ **Recomendaciones**: Registrar sin cambios físicos (lentes, maquillaje), usar 2FA como respaldo
 
 ### **Protecciones de Sesión**
 - ✅ JWT con expiración (7 días)

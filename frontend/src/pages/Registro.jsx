@@ -100,12 +100,27 @@ const Registro = () => {
                             .withFaceLandmarks()
                             .withFaceDescriptors();
                         
-                        if (detections.length > 0) {
-                            console.log('[REGISTRO] Descriptor de rostro extraído');
-                            resolve(detections[0].descriptor);
-                        } else {
+                        // VALIDACIÓN ANTI-SPOOFING: Detectar múltiples rostros
+                        if (detections.length === 0) {
                             reject(new Error('No se detectó rostro en la imagen'));
+                            return;
                         }
+                        
+                        if (detections.length > 1) {
+                            console.warn('[REGISTRO] Se detectaron', detections.length, 'rostros');
+                            reject(new Error('Se detectaron múltiples rostros. Por favor, asegúrate de estar solo'));
+                            return;
+                        }
+                        
+                        // Validación de rostro válido (landmarks detectados correctamente)
+                        const landmarks = detections[0].landmarks;
+                        if (!landmarks || landmarks.positions.length < 68) {
+                            reject(new Error('Rostro no detectado correctamente. Asegúrate de estar frente a la cámara'));
+                            return;
+                        }
+                        
+                        console.log('[REGISTRO] Descriptor de rostro extraído con', detections.length, 'rostro(s)');
+                        resolve(detections[0].descriptor);
                     };
                     img.src = event.target.result;
                 } catch (error) {
