@@ -122,6 +122,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
         }
 
         console.log('[CAPTURE] Capturando rostro...');
+        console.log('[CAPTURE] onCapture disponible:', typeof onCapture === 'function');
 
         try {
             const canvas = document.createElement('canvas');
@@ -136,10 +137,37 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoRef.current, 0, 0);
 
+            let blobProcesado = false;
+            
+            // Timeout de seguridad (3 segundos)
+            const timeoutId = setTimeout(() => {
+                if (!blobProcesado) {
+                    console.warn('[CAPTURE] canvas.toBlob timeout - usando alternativa');
+                    // Fallback: enviar como data URL
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                    fetch(dataUrl).then(res => res.blob()).then(blob => {
+                        console.log('[CAPTURE] Blob fallback creado:', blob.size + ' bytes');
+                        if (typeof onCapture === 'function') {
+                            onCapture(blob);
+                        } else {
+                            console.error('[CAPTURE] onCapture no es función:', typeof onCapture);
+                        }
+                    });
+                }
+            }, 3000);
+
             canvas.toBlob((blob) => {
+                clearTimeout(timeoutId);
+                blobProcesado = true;
+                
                 console.log('[CAPTURE] Blob creado:', blob ? blob.size + ' bytes' : 'NULL');
                 if (blob) {
-                    onCapture(blob);
+                    if (typeof onCapture === 'function') {
+                        console.log('[CAPTURE] Ejecutando onCapture...');
+                        onCapture(blob);
+                    } else {
+                        console.error('[CAPTURE] onCapture NO es función:', typeof onCapture);
+                    }
                 } else {
                     console.error('[CAPTURE] Error: blob es NULL');
                 }
