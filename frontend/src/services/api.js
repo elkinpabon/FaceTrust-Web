@@ -22,16 +22,17 @@ api.interceptors.request.use((config) => {
 export const authService = {
     registro: (datos) => api.post('/auth/registro', datos),
     login: (correo, contraseña) => api.post('/auth/login', { correo, contraseña }),
-    guardarImagenFacial: (datos, imagen) => {
+    guardarImagenFacial: (datos, imagen, descriptorFacial) => {
         const formData = new FormData();
         // Agregar solo la imagen al FormData
         formData.append('imagen', imagen, 'rostro.jpg');
         
-        // Enviar datos del formulario en un header personalizado (workaround para multer)
+        // Enviar datos del formulario y descriptor en headers personalizados
         return api.post('/auth/imagen-facial', formData, {
             headers: { 
                 'Content-Type': 'multipart/form-data',
-                'x-registro-datos': encodeURIComponent(JSON.stringify(datos))
+                'x-registro-datos': encodeURIComponent(JSON.stringify(datos)),
+                'x-descriptor-facial': encodeURIComponent(JSON.stringify(descriptorFacial))
             }
         });
     },

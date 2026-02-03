@@ -131,14 +131,28 @@ const Registro = () => {
             }
             const datosFormulario = JSON.parse(datosTemp);
             
-            console.log('[REGISTRO] Enviando blob (' + blob.size + ' bytes)...');
+            // Extraer descriptor facial ANTES de enviar
+            console.log('[REGISTRO] Extrayendo descriptor facial...');
+            const descriptorFacial = await extraerDescriptorFacial(blob);
+            
+            if (!descriptorFacial) {
+                throw new Error('No se pudo extraer el descriptor facial');
+            }
+            
+            console.log('[REGISTRO] Descriptor facial extraído:', descriptorFacial.length, 'valores');
+            console.log('[REGISTRO] Enviando blob (' + blob.size + ' bytes) + descriptor...');
             const tiempoInicio = Date.now();
             
-            const response = await authService.guardarImagenFacial(datosFormulario, blob);
+            // Enviar imagen Y descriptor al backend
+            const response = await authService.guardarImagenFacial(
+                datosFormulario, 
+                blob, 
+                Array.from(descriptorFacial)
+            );
+            
             const tiempoTotal = Date.now() - tiempoInicio;
             console.log('[REGISTRO] ✓ Completado en ' + tiempoTotal + 'ms');
 
-            const descriptorFacial = await extraerDescriptorFacial(blob);
             const usuarioId = response.data.usuarioId;
             
             if (descriptorFacial && usuarioId) {
@@ -147,9 +161,15 @@ const Registro = () => {
 
             setRegistroExitoso(true);
         } catch (err) {
-            console.error('[REGISTRO] Error:', err.message);
-            const mensajeError = err.response?.data?.error || err.message || 'Error en el registro';
-            setError(mensajeError);
+            console.error('[REGISTRO] Error:', err);
+            
+            // Manejar error de rostro duplicado específicamente
+            if (err.response?.data?.codigoError === 'ROSTRO_DUPLICADO') {
+                setError('⚠️ Este rostro ya está registrado en el sistema. Si crees que esto es un error, contacta al administrador.');
+            } else {
+                const mensajeError = err.response?.data?.error || err.message || 'Error en el registro';
+                setError(mensajeError);
+            }
         } finally {
             setCargando(false);
             setProcesando(false);
@@ -475,11 +495,29 @@ const Registro = () => {
                                 <p className="scanner-subtitle">Análisis Facial - Captura tu rostro para completar el registro</p>
                             </div>
                             <div className="scanner-content">
+                                {error && (
+                                    <div className="error-message-scanner">
+                                        {error}
+                                        {error.includes('Este rostro ya está registrado') && (
+                                            <button 
+                                                className="auth-button secondary-button"
+                                                onClick={() => {
+                                                    setError('');
+                                                    setPaso(1);
+                                                    localStorage.removeItem('datosRegistroTemp');
+                                                }}
+                                                style={{ marginTop: '15px' }}
+                                            >
+                                                Volver al Formulario
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
                                 <FaceScanner 
                                     onCapture={handleCapturarRostro} 
                                     titulo="Captura tu Rostro"
                                     nombreUsuario={`${formData.nombre} ${formData.apellido}`}
-                                    activo={!registroExitoso && !procesando}
+                                    activo={!registroExitoso && !procesando && !error}
                                 />
                             </div>
                         </div>

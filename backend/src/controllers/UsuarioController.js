@@ -31,7 +31,7 @@ class UsuarioController {
             if (telefono && !/^\d{7,15}$/.test(telefono.replace(/\D/g, ''))) {
                 return res.status(400).json({ error: 'Teléfono inválido' });
             }
-
+            
             await Usuario.actualizar(req.usuario.id, {
                 nombre: nombre ? xss(nombre.trim()) : undefined,
                 apellido: apellido ? xss(apellido.trim()) : undefined,

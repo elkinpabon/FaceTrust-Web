@@ -5,6 +5,7 @@ const { validate: isValidEmail } = require('email-validator');
 const xss = require('xss');
 const LoginAttempts = require('../utils/LoginAttempts');
 const TwoFactorService = require('../services/TwoFactorService');
+const FaceDescriptorUtils = require('../utils/FaceDescriptorUtils');
 
 class AuthController {
     // Registro
@@ -247,6 +248,7 @@ class AuthController {
         try {
             // Los datos vienen en un header personalizado (workaround para multer)
             const datosHeader = req.get('x-registro-datos');
+            const descriptorHeader = req.get('x-descriptor-facial');
             
             if (!req.file) {
                 return res.status(400).json({ error: 'Debes completar el escaneo facial para registrarte' });
@@ -256,13 +258,24 @@ class AuthController {
                 return res.status(400).json({ error: 'Faltan datos del formulario' });
             }
 
+            if (!descriptorHeader) {
+                return res.status(400).json({ error: 'No se pudo procesar el descriptor facial' });
+            }
+
             // Decodificar datos del header
             const datosFormulario = JSON.parse(decodeURIComponent(datosHeader));
+            const descriptorFacial = JSON.parse(decodeURIComponent(descriptorHeader));
+            
             const { nombre, apellido, cedula, correo, contraseña, telefono, direccion } = datosFormulario;
             
             // Validar que tenga datos de usuario
             if (!nombre || !apellido || !cedula || !correo || !contraseña) {
                 return res.status(400).json({ error: 'Faltan datos requeridos del formulario' });
+            }
+
+            // Validar que el descriptor sea válido
+            if (!FaceDescriptorUtils.esDescriptorValido(descriptorFacial)) {
+                return res.status(400).json({ error: 'Descriptor facial inválido' });
             }
 
             // Sanitizar inputs
@@ -277,7 +290,32 @@ class AuthController {
                 return res.status(400).json({ error: 'El correo ya está registrado' });
             }
 
-            // AHORA sí crear usuario (después de validar imagen)
+            // VALIDAR QUE EL ROSTRO SEA ÚNICO
+            console.log('[FACE-CHECK] Verificando si el rostro ya está registrado...');
+            const usuariosConDescriptores = await Usuario.obtenerTodosDescriptores();
+            
+            for (const usuario of usuariosConDescriptores) {
+                if (usuario.descriptor) {
+                    const similares = FaceDescriptorUtils.sonSimilares(
+                        descriptorFacial, 
+                        usuario.descriptor,
+                        0.6 // Umbral de similitud
+                    );
+                    
+                    if (similares) {
+                        console.log(`[FACE-CHECK] ✗ Rostro ya registrado (Usuario: ${usuario.nombre} ${usuario.apellido})`);
+                        return res.status(409).json({ 
+                            error: 'Este rostro ya está registrado en el sistema',
+                            mensaje: 'El rostro que intentas registrar ya pertenece a otro usuario',
+                            codigoError: 'ROSTRO_DUPLICADO'
+                        });
+                    }
+                }
+            }
+            
+            console.log('[FACE-CHECK] ✓ Rostro único verificado');
+
+            // AHORA sí crear usuario (después de validar imagen y rostro único)
             const resultado = await Usuario.crear({
                 nombre: nombreSanitizado,
                 apellido: apellidoSanitizado,
@@ -293,6 +331,11 @@ class AuthController {
 
             // Guardar imagen en BD
             await Usuario.guardarImagen(usuarioId, req.file.buffer);
+            
+            // Guardar descriptor facial en BD
+            await Usuario.guardarDescriptor(usuarioId, descriptorFacial);
+
+            console.log(`[REGISTRO] ✓ Usuario ${usuarioId} creado con rostro único`);
 
             return res.status(201).json({ 
                 mensaje: '¡Registro completado! Tu identidad facial ha sido verificada',

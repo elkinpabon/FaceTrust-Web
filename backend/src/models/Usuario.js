@@ -70,6 +70,54 @@ class Usuario {
         }
     }
 
+    // Guardar descriptor facial
+    static async guardarDescriptor(usuarioId, descriptor) {
+        try {
+            const descriptorJSON = JSON.stringify(descriptor);
+            const query = 'UPDATE usuarios SET descriptor_facial = ? WHERE id = ?';
+            const [resultado] = await pool.query(query, [descriptorJSON, usuarioId]);
+            return resultado;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Obtener todos los descriptores faciales (excepto el del usuario especificado)
+    static async obtenerTodosDescriptores(excluirUsuarioId = null) {
+        try {
+            let query = 'SELECT id, nombre, apellido, correo, descriptor_facial FROM usuarios WHERE descriptor_facial IS NOT NULL';
+            const params = [];
+            
+            if (excluirUsuarioId) {
+                query += ' AND id != ?';
+                params.push(excluirUsuarioId);
+            }
+            
+            const [resultados] = await pool.query(query, params);
+            return resultados.map(usuario => ({
+                id: usuario.id,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
+                correo: usuario.correo,
+                descriptor: usuario.descriptor_facial ? JSON.parse(usuario.descriptor_facial) : null
+            }));
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    // Obtener descriptor facial de un usuario
+    static async obtenerDescriptor(usuarioId) {
+        try {
+            const query = 'SELECT descriptor_facial FROM usuarios WHERE id = ?';
+            const [resultados] = await pool.query(query, [usuarioId]);
+            const descriptor = resultados[0]?.descriptor_facial;
+            return descriptor ? JSON.parse(descriptor) : null;
+        } catch (error) {
+            throw error;
+        }
+    }
+
     // Obtener imagen de usuario
     static async obtenerImagen(usuarioId) {
         try {
