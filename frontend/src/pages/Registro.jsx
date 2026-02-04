@@ -4,6 +4,7 @@ import * as faceapi from 'face-api.js';
 import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
 import { authService } from '../services/api.js';
 import FaceScanner from '../components/FaceScanner.jsx';
+import ModalFeedback from '../components/ModalFeedback.jsx';
 import WaveBackground from '../components/WaveBackground.jsx';
 import Logo from '../components/Logo.jsx';
 import '../styles/auth.css';
@@ -15,6 +16,8 @@ const Registro = () => {
     const [procesando, setProcesando] = useState(false);
     const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
     const [registroExitoso, setRegistroExitoso] = useState(false);
+    const [mostrarModalError, setMostrarModalError] = useState(false);
+    const [errorModal, setErrorModal] = useState({ tipo: 'error', titulo: '', mensaje: '' });
     const [validacionContraseña, setValidacionContraseña] = useState({
         longitud: false,
         mayuscula: false,
@@ -165,7 +168,12 @@ const Registro = () => {
             
             // Manejar error de rostro duplicado específicamente
             if (err.response?.data?.codigoError === 'ROSTRO_DUPLICADO') {
-                setError('⚠️ Este rostro ya está registrado en el sistema. Si crees que esto es un error, contacta al administrador.');
+                setErrorModal({
+                    tipo: 'error',
+                    titulo: '⚠️ Rostro Duplicado',
+                    mensaje: 'Este rostro ya está registrado en el sistema. No se permite registrar la misma cara dos veces. Si crees que esto es un error, por favor contacta al administrador.'
+                });
+                setMostrarModalError(true);
             } else {
                 const mensajeError = err.response?.data?.error || err.message || 'Error en el registro';
                 setError(mensajeError);
@@ -524,6 +532,17 @@ const Registro = () => {
                     )}
                 </>
             )}
+            
+            <ModalFeedback 
+                isOpen={mostrarModalError}
+                tipo={errorModal.tipo}
+                titulo={errorModal.titulo}
+                mensaje={errorModal.mensaje}
+                onClose={() => {
+                    setMostrarModalError(false);
+                    setProcesando(false);
+                }}
+            />
         </>
     );
 };
