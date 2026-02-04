@@ -4,6 +4,7 @@ import * as faceapi from 'face-api.js';
 import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
 import { authService } from '../services/api.js';
 import FaceScanner from '../components/FaceScanner.jsx';
+import Modal2FA from '../components/Modal2FA.jsx';
 import ModalFeedback from '../components/ModalFeedback.jsx';
 import WaveBackground from '../components/WaveBackground.jsx';
 import Logo from '../components/Logo.jsx';
@@ -17,6 +18,8 @@ const Registro = () => {
     const [mostrarInstrucciones, setMostrarInstrucciones] = useState(true);
     const [registroExitoso, setRegistroExitoso] = useState(false);
     const [mostrarModalError, setMostrarModalError] = useState(false);
+    const [mostrarModal2FA, setMostrarModal2FA] = useState(false);
+    const [usuarioActual, setUsuarioActual] = useState(null);
     const [errorModal, setErrorModal] = useState({ tipo: 'error', titulo: '', mensaje: '' });
     const [validacionContraseña, setValidacionContraseña] = useState({
         longitud: false,
@@ -59,7 +62,7 @@ const Registro = () => {
         };
     }, []);
 
-    // Navegar cuando registro es exitoso
+    // Navegar cuando registro es exitoso (después de 2FA)
     useEffect(() => {
         if (registroExitoso) {
             localStorage.removeItem('datosRegistroTemp');
@@ -69,6 +72,18 @@ const Registro = () => {
             return () => clearTimeout(timer);
         }
     }, [registroExitoso, navigate]);
+
+    const handle2FAExito = (respuesta) => {
+        console.log('[REGISTRO] ✓ 2FA completado exitosamente');
+        setMostrarModal2FA(false);
+        setRegistroExitoso(true);
+    };
+
+    const handle2FAError = () => {
+        console.log('[REGISTRO] 2FA cancelado');
+        setMostrarModal2FA(false);
+        setPaso(2);
+    };
 
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
@@ -157,12 +172,23 @@ const Registro = () => {
             console.log('[REGISTRO] ✓ Completado en ' + tiempoTotal + 'ms');
 
             const usuarioId = response.data.usuarioId;
+            const correo = datosFormulario.correo;
+            const nombre = datosFormulario.nombre;
+            const apellido = datosFormulario.apellido;
             
             if (descriptorFacial && usuarioId) {
                 localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
             }
 
-            setRegistroExitoso(true);
+            // PASO 3: Mostrar modal 2FA para completar registro
+            setUsuarioActual({
+                id: usuarioId,
+                correo: correo,
+                nombre: nombre,
+                apellido: apellido
+            });
+            setPaso(3);
+            setMostrarModal2FA(true);
         } catch (err) {
             console.error('[REGISTRO] Error:', err);
             
@@ -543,6 +569,14 @@ const Registro = () => {
                     setProcesando(false);
                 }}
             />
+
+            {usuarioActual && mostrarModal2FA && (
+                <Modal2FA 
+                    usuario={usuarioActual}
+                    onCerrar={handle2FAError}
+                    onExito={handle2FAExito}
+                />
+            )}
         </>
     );
 };
