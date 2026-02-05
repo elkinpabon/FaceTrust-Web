@@ -196,13 +196,23 @@ const DashboardUsuario = () => {
                                         <div className="security-item">
                                             <h4>Autenticación de Dos Factores</h4>
                                             <p>Protege tu cuenta con Google Authenticator</p>
-                                            <button 
-                                                className="btn-activar-2fa"
-                                                onClick={() => setMostrarModal2FA(true)}
-                                            >
-                                                <Shield size={16} style={{marginRight: '8px'}} />
-                                                Activar 2FA
-                                            </button>
+                                            {perfil?.tiene2FAActivado ? (
+                                                <button 
+                                                    className="btn-activar-2fa activado"
+                                                    disabled
+                                                >
+                                                    <Shield size={16} style={{marginRight: '8px'}} />
+                                                    2FA Activado
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    className="btn-activar-2fa"
+                                                    onClick={() => setMostrarModal2FA(true)}
+                                                >
+                                                    <Shield size={16} style={{marginRight: '8px'}} />
+                                                    Activar 2FA
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

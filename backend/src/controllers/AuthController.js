@@ -658,6 +658,7 @@ class AuthController {
         try {
             const { usuarioId } = req.params;
             const descriptorHeader = req.get('x-descriptor-facial');
+            const codigo2FAHeader = req.get('x-codigo-2fa');
 
             if (!req.file) {
                 return res.status(400).json({ error: 'No se recibió imagen facial' });
@@ -665,6 +666,13 @@ class AuthController {
 
             if (!descriptorHeader) {
                 return res.status(400).json({ error: 'No se recibió descriptor facial' });
+            }
+
+            if (!codigo2FAHeader || codigo2FAHeader.length !== 6) {
+                return res.status(400).json({ 
+                    error: 'Código de autenticación de dos factores requerido',
+                    codigoError: 'CODIGO_2FA_REQUERIDO'
+                });
             }
 
             // Decodificar descriptor facial
@@ -679,6 +687,55 @@ class AuthController {
             const usuario = await Usuario.obtenerPorId(usuarioId);
             if (!usuario) {
                 return res.status(404).json({ error: 'Usuario no encontrado' });
+            }
+
+            // VALIDAR CÓDIGO 2FA ANTES DE CONTINUAR
+            console.log('[FACE-UPDATE] Verificando código 2FA...');
+            
+            const secret2FA = await TwoFactorService.obtenerSecret(usuarioId);
+            
+            if (!secret2FA) {
+                return res.status(403).json({ 
+                    error: 'No tienes autenticación de dos factores activada. Por seguridad, debes activar 2FA antes de actualizar tu rostro.',
+                    codigoError: '2FA_NO_ACTIVADO'
+                });
+            }
+
+            // Verificar código 2FA
+            const codigo2FAValido = TwoFactorService.verificarCodigo(secret2FA, codigo2FAHeader);
+            
+            if (!codigo2FAValido) {
+                console.log('[FACE-UPDATE] ✗ Código 2FA inválido');
+                return res.status(401).json({ 
+                    error: 'Código de autenticación inválido. Verifica el código en tu aplicación Google Authenticator.',
+                    codigoError: 'CODIGO_2FA_INVALIDO'
+                });
+            }
+
+            console.log('[FACE-UPDATE] ✓ Código 2FA verificado correctamente');
+
+            // VALIDAR QUE EL NUEVO ROSTRO SE PAREZCA AL ROSTRO ACTUAL DEL USUARIO
+            // Esto previene que alguien cambie completamente el rostro de un usuario
+            if (usuario.descriptor_facial) {
+                console.log('[FACE-UPDATE] Verificando similitud con rostro actual...');
+                const descriptorActual = JSON.parse(usuario.descriptor_facial);
+                
+                const esMismaPersona = FaceDescriptorUtils.sonSimilares(
+                    descriptorFacial,
+                    descriptorActual,
+                    0.45 // Umbral más estricto para garantizar que es la misma persona
+                );
+
+                if (!esMismaPersona) {
+                    console.log('[FACE-UPDATE] ✗ El nuevo rostro no coincide con el usuario actual');
+                    return res.status(403).json({ 
+                        error: 'El nuevo rostro no coincide suficientemente con tu rostro registrado. Por seguridad, no se permite cambiar completamente el rostro.',
+                        codigoError: 'ROSTRO_NO_COINCIDE',
+                        detalle: 'Debes capturar tu propio rostro para actualizar la imagen'
+                    });
+                }
+
+                console.log('[FACE-UPDATE] ✓ Nuevo rostro coincide con usuario actual');
             }
 
             // VALIDAR QUE EL ROSTRO SEA ÚNICO (excluyendo al usuario actual)

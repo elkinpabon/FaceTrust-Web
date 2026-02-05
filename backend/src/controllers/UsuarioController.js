@@ -2,6 +2,7 @@ const Usuario = require('../models/Usuario');
 const Registro = require('../models/Registro');
 const pool = require('../config/database');
 const xss = require('xss');
+const TwoFactorService = require('../services/TwoFactorService');
 
 class UsuarioController {
     // Obtener perfil del usuario actual
@@ -12,7 +13,13 @@ class UsuarioController {
                 return res.status(404).json({ error: 'Usuario no encontrado' });
             }
 
-            return res.json(usuario);
+            // Verificar si tiene 2FA habilitado
+            const tiene2FA = await TwoFactorService.estaHabilitado(usuario.id);
+            
+            return res.json({
+                ...usuario,
+                tiene2FAActivado: tiene2FA
+            });
         } catch (error) {
             console.error('Error al obtener perfil:', error);
             return res.status(500).json({ error: 'Error al obtener perfil' });
