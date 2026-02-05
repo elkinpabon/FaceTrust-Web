@@ -36,6 +36,9 @@ router.post('/login', loginLimiter, AuthController.login);
 // Guardar imagen facial + crear usuario - requiere escaneo obligatorio
 router.post('/imagen-facial', upload.single('imagen'), registroLimiter, AuthController.guardarImagenFacial);
 
+// Completar registro después de validar 2FA
+router.post('/completar-registro', upload.single('imagen'), registroLimiter, AuthController.completarRegistro);
+
 // Obtener imagen facial
 router.get('/imagen-facial/:usuarioId', AuthController.obtenerImagenFacial);
 

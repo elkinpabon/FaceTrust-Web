@@ -315,7 +315,47 @@ class AuthController {
             
             console.log('[FACE-CHECK] ✓ Rostro único verificado');
 
-            // AHORA sí crear usuario (después de validar imagen y rostro único)
+            // Solo validar, NO crear usuario aún
+            // El usuario se creará después de validar 2FA
+            return res.json({ 
+                mensaje: 'Imagen facial validada correctamente',
+                imagenValida: true
+            });
+        } catch (error) {
+            console.error('Error al validar imagen facial:', error);
+            return res.status(500).json({ error: 'Error al validar la imagen facial' });
+        }
+    }
+
+    // Completar registro después de validar 2FA
+    static async completarRegistro(req, res) {
+        try {
+            const datosHeader = req.get('x-registro-datos');
+            const descriptorHeader = req.get('x-descriptor-facial');
+            const secretDosFA = req.get('x-dos-fa-secret');
+
+            if (!datosHeader || !descriptorHeader || !req.file) {
+                return res.status(400).json({ error: 'Datos incompletos para completar registro' });
+            }
+
+            // Decodificar datos
+            const datosFormulario = JSON.parse(decodeURIComponent(datosHeader));
+            const descriptorFacial = JSON.parse(decodeURIComponent(descriptorHeader));
+            
+            const { nombre, apellido, cedula, correo, contraseña, telefono, direccion } = datosFormulario;
+
+            // Validar que el descriptor sea válido
+            if (!FaceDescriptorUtils.esDescriptorValido(descriptorFacial)) {
+                return res.status(400).json({ error: 'Descriptor facial inválido' });
+            }
+
+            // Sanitizar inputs
+            const nombreSanitizado = xss(nombre.trim());
+            const apellidoSanitizado = xss(apellido.trim());
+            const cedulaSanitizado = xss(cedula.trim());
+            const correoSanitizado = xss(correo.trim().toLowerCase());
+
+            // Crear usuario AHORA
             const resultado = await Usuario.crear({
                 nombre: nombreSanitizado,
                 apellido: apellidoSanitizado,
@@ -327,19 +367,25 @@ class AuthController {
                 rol: 'usuario'
             });
 
-            const usuarioId = resultado.insertId;
+            const nuevoUsuarioId = resultado.insertId;
 
             // Guardar imagen en BD
-            await Usuario.guardarImagen(usuarioId, req.file.buffer);
+            await Usuario.guardarImagen(nuevoUsuarioId, req.file.buffer);
             
             // Guardar descriptor facial en BD
-            await Usuario.guardarDescriptor(usuarioId, descriptorFacial);
+            await Usuario.guardarDescriptor(nuevoUsuarioId, descriptorFacial);
 
-            console.log(`[REGISTRO] ✓ Usuario ${usuarioId} creado con rostro único`);
+            // Guardar 2FA si fue validado en registro
+            if (secretDosFA) {
+                await TwoFactorService.habilitarDosFA(nuevoUsuarioId, secretDosFA);
+                console.log(`[2FA] ✓ 2FA habilitado para usuario ${nuevoUsuarioId}`);
+            }
+
+            console.log(`[REGISTRO] ✓ Usuario ${nuevoUsuarioId} creado completamente con 2FA validado`);
 
             return res.status(201).json({ 
-                mensaje: '¡Registro completado! Tu identidad facial ha sido verificada',
-                usuarioId: usuarioId,
+                mensaje: '¡Registro completado exitosamente!',
+                usuarioId: nuevoUsuarioId,
                 registroCompleto: true
             });
         } catch (error) {
@@ -474,7 +520,7 @@ class AuthController {
         }
     }
 
-    // Solicitar 2FA (después de 5 intentos fallidos)
+    // Solicitar 2FA (durante registro o después de 5 intentos fallidos)
     static async solicitarDosFA(req, res) {
         try {
             const { correo } = req.body;
@@ -488,26 +534,21 @@ class AuthController {
                 return res.status(400).json({ error: 'Email inválido' });
             }
 
-            const usuario = await Usuario.obtenerPorCorreo(correoSanitizado);
-            if (!usuario) {
-                return res.status(401).json({ error: 'Usuario no encontrado' });
-            }
-
             console.log(`[2FA] Solicitando 2FA para ${correoSanitizado}`);
 
-            // Generar nuevo secret siempre
+            // Generar secret TEMPORAL (no requiere que el usuario exista aún)
             const datos = await TwoFactorService.generarSecret(correoSanitizado);
             const secret = datos.secret;
             const qrCode = datos.qrCode;
             
-            // Habilitar 2FA
-            await TwoFactorService.habilitarDosFA(usuario.id, secret);
-            console.log(`[2FA] ✓ 2FA generado para ${correoSanitizado}`);
+            console.log(`[2FA] ✓ Secret temporal generado para ${correoSanitizado}`);
 
+            // Retornar AMBOS: QR para mostrar + secret para que el cliente lo guarde
+            // El cliente guardará el secret y lo devolverá cuando verifique el código
             return res.json({
                 mensaje: 'Escanea el código QR con Google Authenticator',
-                usuarioId: usuario.id,
                 qrCode: qrCode,
+                secret: secret,  // Enviar secret al cliente (lo guardará en estado)
                 tieneCodigoQR: true,
                 instrucciones: 'Abre Google Authenticator y escanea el código QR o ingresa manualmente el código de configuración'
             });
@@ -520,56 +561,78 @@ class AuthController {
     // Verificar código 2FA
     static async verificarDosFA(req, res) {
         try {
-            const { usuarioId, codigo } = req.body;
-
-            if (!usuarioId || !codigo) {
-                return res.status(400).json({ error: 'usuarioId y código requeridos' });
-            }
+            const { usuarioId, codigo, secret } = req.body;
 
             // Validar que código sea números de 6 dígitos
-            if (!/^\d{6}$/.test(codigo)) {
+            if (!codigo || !/^\d{6}$/.test(codigo)) {
                 return res.status(400).json({ error: 'Código debe ser 6 dígitos' });
             }
 
-            const usuario = await Usuario.obtenerPorId(usuarioId);
-            if (!usuario) {
-                return res.status(404).json({ error: 'Usuario no encontrado' });
+            // En REGISTRO: se envía secret desde el cliente; En LOGIN: se busca en BD
+            if (!secret && !usuarioId) {
+                return res.status(400).json({ error: 'Solicita el QR primero o inicia sesión' });
             }
 
-            const secret = await TwoFactorService.obtenerSecret(usuarioId);
-            if (!secret) {
-                return res.status(400).json({ error: '2FA no configurado para este usuario' });
+            let secretVerificacion;
+            let usuario = null;
+
+            if (usuarioId) {
+                // MODO LOGIN: Buscar usuario y obtener su secret
+                usuario = await Usuario.obtenerPorId(usuarioId);
+                if (!usuario) {
+                    return res.status(404).json({ error: 'Usuario no encontrado' });
+                }
+
+                secretVerificacion = await TwoFactorService.obtenerSecret(usuarioId);
+                if (!secretVerificacion) {
+                    return res.status(400).json({ error: '2FA no configurado para este usuario' });
+                }
+
+                console.log(`[2FA] LOGIN - Verificando código para usuario ${usuarioId}`);
+            } else if (secret) {
+                // MODO REGISTRO: Usar secret enviado por el cliente
+                secretVerificacion = secret;
+                console.log('[2FA] REGISTRO - Verificando código con secret temporal');
             }
 
-            // Verificar código
-            const esValido = TwoFactorService.verificarCodigo(secret, codigo);
+            // Verificar código contra el secret (cualquiera sea su origen)
+            const esValido = TwoFactorService.verificarCodigo(secretVerificacion, codigo);
             if (!esValido) {
                 return res.status(401).json({ error: 'Código inválido o expirado' });
             }
 
-            // Limpiar intentos fallidos de login
-            await LoginAttempts.limpiarIntentos(usuario.correo);
+            // Si es LOGIN, generar JWT y retornar usuario
+            if (usuarioId && usuario) {
+                await LoginAttempts.limpiarIntentos(usuario.correo);
 
-            // Generar JWT
-            const token = jwt.sign(
-                { id: usuario.id, correo: usuario.correo, rol: usuario.rol },
-                process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_2025',
-                { expiresIn: process.env.JWT_EXPIRE || '7d' }
-            );
+                const token = jwt.sign(
+                    { id: usuario.id, correo: usuario.correo, rol: usuario.rol },
+                    process.env.JWT_SECRET || 'tu_clave_secreta_muy_segura_2025',
+                    { expiresIn: process.env.JWT_EXPIRE || '7d' }
+                );
 
-            console.log(`[2FA] ✓ Código verificado - Login exitoso para ${usuario.correo}`);
+                console.log(`[2FA] ✓ LOGIN exitoso con 2FA para ${usuario.correo}`);
 
-            return res.json({
-                mensaje: 'Login exitoso con 2FA',
-                token,
-                usuario: {
-                    id: usuario.id,
-                    nombre: usuario.nombre,
-                    apellido: usuario.apellido,
-                    correo: usuario.correo,
-                    rol: usuario.rol
-                }
-            });
+                return res.json({
+                    mensaje: 'Login exitoso con 2FA',
+                    token,
+                    usuario: {
+                        id: usuario.id,
+                        nombre: usuario.nombre,
+                        apellido: usuario.apellido,
+                        correo: usuario.correo,
+                        rol: usuario.rol
+                    }
+                });
+            } else {
+                // Si es REGISTRO, solo confirmar que el código es válido
+                console.log('[2FA] ✓ REGISTRO - Código verificado exitosamente');
+                
+                return res.json({
+                    mensaje: '2FA verificado exitosamente',
+                    dos_fa_verificado: true
+                });
+            }
         } catch (error) {
             console.error('[ERROR] Error verificando 2FA:', error);
             return res.status(500).json({ error: 'Error verificando código' });

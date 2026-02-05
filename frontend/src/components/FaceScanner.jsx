@@ -82,15 +82,34 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     .withFaceLandmarks()
                     .withFaceDescriptors();
 
-                if (canvas) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                if (canvas && video.videoWidth && video.videoHeight) {
+                    // Dimensiones del contenedor CSS
+                    const containerWidth = 560;
+                    const containerHeight = 640;
+                    
+                    canvas.width = containerWidth;
+                    canvas.height = containerHeight;
+                    
                     const ctx = canvas.getContext('2d');
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Escala para ajustar los dibujos al contenedor
+                    const scaleX = containerWidth / video.videoWidth;
+                    const scaleY = containerHeight / video.videoHeight;
+                    
                     if (detections.length > 0) {
                         setRostroDetectado(true);
-                        faceapi.draw.drawDetections(canvas, detections);
-                        faceapi.draw.drawFaceLandmarks(canvas, detections);
+                        
+                        // Aplicar transformación espejo y retomar escala
+                        ctx.save();
+                        ctx.translate(canvas.width / 2, 0);
+                        ctx.scale(-scaleX, scaleY);
+                        ctx.translate(-video.videoWidth / 2, 0);
+                        
+                        faceapi.draw.drawDetections(ctx.canvas, detections);
+                        faceapi.draw.drawFaceLandmarks(ctx.canvas, detections);
+                        
+                        ctx.restore();
                     } else {
                         setRostroDetectado(false);
                     }
@@ -231,19 +250,7 @@ const FaceScanner = ({ onCapture, titulo = "Escanear Rostro", autoCapture = true
                     </div>
                 )}
                 <div className="overlay-instructions">
-                    {rostroDetectado ? 'Rostro detectado' : 'Posiciona tu rostro aquí'}
-                </div>
-                {rostroDetectado && (
-                    <div className="detected-badge">
-                        <span className="badge-dot"></span>
-                        Listo para capturar
-                    </div>
-                )}
-            </div>
-
-            <div className="detection-message-wrapper">
-                <div className={`detection-message ${rostroDetectado ? 'success' : 'info'}`}>
-                    {rostroDetectado ? '✓ Rostro detectado correctamente - Capturando...' : 'Acerca tu rostro a la cámara'}
+                    Posiciona tu rostro aquí
                 </div>
             </div>
 

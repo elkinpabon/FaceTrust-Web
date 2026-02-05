@@ -36,6 +36,23 @@ export const authService = {
             }
         });
     },
+    completarRegistro: (datos, imagen, descriptorFacial, secretDosFA) => {
+        const formData = new FormData();
+        formData.append('imagen', imagen, 'rostro.jpg');
+        
+        const headers = { 
+            'Content-Type': 'multipart/form-data',
+            'x-registro-datos': encodeURIComponent(JSON.stringify(datos)),
+            'x-descriptor-facial': encodeURIComponent(JSON.stringify(descriptorFacial))
+        };
+        
+        // Si hay secret 2FA, pasarlo en header
+        if (secretDosFA) {
+            headers['x-dos-fa-secret'] = secretDosFA;
+        }
+        
+        return api.post('/auth/completar-registro', formData, { headers });
+    },
     obtenerImagenFacial: (usuarioId) => api.get(`/auth/imagen-facial/${usuarioId}`),
     verificarIdentidad: (usuarioId, blob) => {
         console.log('[API] verificarIdentidad llamado');

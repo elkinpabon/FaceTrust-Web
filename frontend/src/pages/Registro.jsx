@@ -20,6 +20,8 @@ const Registro = () => {
     const [mostrarModalError, setMostrarModalError] = useState(false);
     const [mostrarModal2FA, setMostrarModal2FA] = useState(false);
     const [usuarioActual, setUsuarioActual] = useState(null);
+    const [blobTemporal, setBlobTemporal] = useState(null);
+    const [descriptorTemporal, setDescriptorTemporal] = useState(null);
     const [errorModal, setErrorModal] = useState({ tipo: 'error', titulo: '', mensaje: '' });
     const [validacionContraseña, setValidacionContraseña] = useState({
         longitud: false,
@@ -73,15 +75,46 @@ const Registro = () => {
         }
     }, [registroExitoso, navigate]);
 
-    const handle2FAExito = (respuesta) => {
+    const handle2FAExito = async (respuesta) => {
         console.log('[REGISTRO] ✓ 2FA completado exitosamente');
+        console.log('[REGISTRO] Secret recibido:', respuesta.secret ? 'Sí' : 'No');
+        
         setMostrarModal2FA(false);
-        setRegistroExitoso(true);
+        setCargando(true);
+
+        try {
+            const datosTemp = localStorage.getItem('datosRegistroTemp');
+            const datosFormulario = JSON.parse(datosTemp);
+            
+            // Ahora sí, completar el registro creando el usuario en BD
+            // Pasar el secret 2FA junto con los demás datos
+            const response = await authService.completarRegistro(
+                datosFormulario,
+                blobTemporal,
+                descriptorTemporal,
+                respuesta.secret  // Pasar el secret 2FA para guardarlo
+            );
+
+            const nuevoUsuarioId = response.data.usuarioId;
+            
+            if (descriptorTemporal && nuevoUsuarioId) {
+                localStorage.setItem(`descriptor_${nuevoUsuarioId}`, JSON.stringify(descriptorTemporal));
+            }
+
+            setRegistroExitoso(true);
+        } catch (err) {
+            console.error('[REGISTRO] Error completando registro:', err);
+            setError(err.response?.data?.error || 'Error al completar el registro');
+            setPaso(2);
+        } finally {
+            setCargando(false);
+        }
     };
 
     const handle2FAError = () => {
         console.log('[REGISTRO] 2FA cancelado');
         setMostrarModal2FA(false);
+        setProcesando(false);
         setPaso(2);
     };
 
@@ -162,27 +195,27 @@ const Registro = () => {
             const tiempoInicio = Date.now();
             
             // Enviar imagen Y descriptor al backend
-            const response = await authService.guardarImagenFacial(
+            await authService.guardarImagenFacial(
                 datosFormulario, 
                 blob, 
                 Array.from(descriptorFacial)
             );
             
             const tiempoTotal = Date.now() - tiempoInicio;
-            console.log('[REGISTRO] ✓ Completado en ' + tiempoTotal + 'ms');
+            console.log('[REGISTRO] ✓ Imagen facial validada en ' + tiempoTotal + 'ms');
 
-            const usuarioId = response.data.usuarioId;
+            // Guardar temporalmente blob y descriptor (no crear usuario aún)
+            setBlobTemporal(blob);
+            setDescriptorTemporal(Array.from(descriptorFacial));
+            
             const correo = datosFormulario.correo;
             const nombre = datosFormulario.nombre;
             const apellido = datosFormulario.apellido;
-            
-            if (descriptorFacial && usuarioId) {
-                localStorage.setItem(`descriptor_${usuarioId}`, JSON.stringify(Array.from(descriptorFacial)));
-            }
 
             // PASO 3: Mostrar modal 2FA para completar registro
+
             setUsuarioActual({
-                id: usuarioId,
+                id: null,
                 correo: correo,
                 nombre: nombre,
                 apellido: apellido

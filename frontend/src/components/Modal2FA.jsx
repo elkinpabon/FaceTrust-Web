@@ -10,6 +10,7 @@ export default function Modal2FA({ usuario, onCerrar, onExito }) {
     const [error, setError] = useState('');
     const [cargando, setCargando] = useState(false);
     const [codigoCopiado, setCodigoCopiado] = useState(false);
+    const [secretTemporal, setSecretTemporal] = useState(null); // Guardar secret en Cliente
     const inputRef = useRef(null);
 
     // Paso 1: Solicitar QR
@@ -25,16 +26,15 @@ export default function Modal2FA({ usuario, onCerrar, onExito }) {
             });
 
             console.log('[2FA] Respuesta completa:', respuesta);
-            console.log('[2FA] Respuesta data:', respuesta.data);
-
             const datos = respuesta.data || respuesta;
             
-            if (datos.qrCode) {
+            if (datos.qrCode && datos.secret) {
                 setQrCode(datos.qrCode);
+                setSecretTemporal(datos.secret); // Guardar secret en cliente
                 setPaso(2);
-                console.log('[2FA] QR recibido, mostrando en modal');
+                console.log('[2FA] QR recibido, secret guardado en cliente');
             } else {
-                console.error('[2FA] qrCode no encontrado en respuesta:', datos);
+                console.error('[2FA] qrCode o secret no encontrado en respuesta:', datos);
                 setError('No se pudo generar el código QR');
             }
         } catch (err) {
@@ -53,26 +53,48 @@ export default function Modal2FA({ usuario, onCerrar, onExito }) {
                 return;
             }
 
+            if (!secretTemporal) {
+                setError('Por favor, solicita el QR primero');
+                return;
+            }
+
             setCargando(true);
             setError('');
 
             console.log('[2FA] Verificando código...');
 
-            const respuesta = await authService.verificarDosFA({
-                usuarioId: usuario.id,
-                codigo
-            });
+            // Enviar usuarioId solo si existe (LOGIN), sino es REGISTRO
+            // El backend NO necesita el secret aquí (ya está en el cliente)
+            const datosVerificacion = {
+                codigo,
+                secret: secretTemporal,  // Enviar secret para validación
+                ...(usuario.id && { usuarioId: usuario.id })  // Solo incluir si existe
+            };
+
+            const respuesta = await authService.verificarDosFA(datosVerificacion);
 
             console.log('[2FA] ✓ Código verificado exitosamente');
+
+            // Crear objeto respuesta con secret temporal para que el registro lo use
+            const respuestaConSecret = {
+                ...(respuesta.data || respuesta),
+                secret: secretTemporal  // Agregar secret a la respuesta
+            };
 
             // Limpiar y cerrar
             setCodigo('');
             setPaso(1);
             setQrCode(null);
+            const secretParaRegistro = secretTemporal;  // Guardar antes de limpiar
+            setSecretTemporal(null);
             onCerrar();
             
             if (onExito) {
-                onExito(respuesta.data || respuesta);
+                // Pasar respuesta con secret incluido
+                onExito({
+                    ...respuestaConSecret,
+                    secret: secretParaRegistro
+                });
             }
         } catch (err) {
             console.error('[2FA ERROR]', err);
