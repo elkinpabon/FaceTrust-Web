@@ -54,4 +54,7 @@ router.post('/solicitar-2fa', AuthController.solicitarDosFA);
 // Verificar código 2FA
 router.post('/verificar-2fa', AuthController.verificarDosFA);
 
+// Actualizar rostro de usuario
+router.put('/actualizar-rostro/:usuarioId', upload.single('imagen'), AuthController.actualizarRostro);
+
 module.exports = router;

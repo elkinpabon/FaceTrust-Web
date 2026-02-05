@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, ClipboardList, CheckCircle, LogOut, Search, Trash2, Edit, History, Lock } from 'lucide-react';
+import { Users, ClipboardList, CheckCircle, LogOut, Search, Trash2, Edit, History, Lock, Camera } from 'lucide-react';
 import { usuarioService, registroService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Logo from '../components/Logo.jsx';
 import ModalEditarUsuario from '../components/ModalEditarUsuario.jsx';
+import ActualizarRostro from '../components/ActualizarRostro.jsx';
 import '../styles/admin.css';
 
 const DashboardAdmin = () => {
@@ -19,6 +20,8 @@ const DashboardAdmin = () => {
     const [filtro, setFiltro] = useState('');
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [modalAbierto, setModalAbierto] = useState(false);
+    const [mostrarActualizarRostro, setMostrarActualizarRostro] = useState(false);
+    const [usuarioRostro, setUsuarioRostro] = useState(null);
 
     useEffect(() => {
         cargarDatos();
@@ -68,6 +71,16 @@ const DashboardAdmin = () => {
     const handleEditar = (user) => {
         setUsuarioSeleccionado(user);
         setModalAbierto(true);
+    };
+
+    const handleEditarRostro = (user) => {
+        setUsuarioRostro(user);
+        setMostrarActualizarRostro(true);
+    };
+
+    const handleActualizacionRostroExitosa = () => {
+        alert('Rostro actualizado correctamente');
+        cargarDatos();
     };
 
     const handleGuardarCambios = () => {
@@ -229,6 +242,27 @@ const DashboardAdmin = () => {
                                                         <Edit size={16} />
                                                     </button>
                                                     <button
+                                                        onClick={() => handleEditarRostro(user)}
+                                                        className="btn-camera"
+                                                        title="Actualizar rostro"
+                                                        style={{
+                                                            backgroundColor: '#0d7377',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '4px',
+                                                            padding: '6px 8px',
+                                                            margin: '0 2px',
+                                                            cursor: 'pointer',
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            transition: 'background-color 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#0a5f63'}
+                                                        onMouseLeave={(e) => e.target.style.backgroundColor = '#0d7377'}
+                                                    >
+                                                        <Camera size={16} />
+                                                    </button>
+                                                    <button
                                                         onClick={() => handleEliminar(user.id)}
                                                         className="btn-delete"
                                                         title="Eliminar usuario"
@@ -375,6 +409,17 @@ const DashboardAdmin = () => {
                     setUsuarioSeleccionado(null);
                 }}
                 onGuardar={handleGuardarCambios}
+            />
+
+            <ActualizarRostro 
+                isOpen={mostrarActualizarRostro}
+                onClose={() => {
+                    setMostrarActualizarRostro(false);
+                    setUsuarioRostro(null);
+                }}
+                usuarioId={usuarioRostro?.id}
+                nombreUsuario={usuarioRostro ? `${usuarioRostro.nombre} ${usuarioRostro.apellido}` : ''}
+                onActualizacionExitosa={handleActualizacionRostroExitosa}
             />
         </div>
     );

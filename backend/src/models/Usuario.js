@@ -227,6 +227,32 @@ class Usuario {
             throw error;
         }
     }
+
+    // Actualizar imagen facial
+    static async actualizarImagen(usuarioId, imagen) {
+        try {
+            const query = 'UPDATE usuarios SET imagen = ? WHERE id = ?';
+            const [resultado] = await pool.query(query, [imagen, usuarioId]);
+            console.log(`[✓ BD] Imagen actualizada para usuario ${usuarioId}`);
+            return resultado;
+        } catch (error) {
+            console.error('[✗ BD] Error actualizando imagen:', error.message);
+            throw error;
+        }
+    }
+
+    // Actualizar descriptor facial
+    static async actualizarDescriptor(usuarioId, descriptor) {
+        try {
+            const query = 'UPDATE usuarios SET descriptor_facial = ? WHERE id = ?';
+            const [resultado] = await pool.query(query, [JSON.stringify(descriptor), usuarioId]);
+            console.log(`[✓ BD] Descriptor actualizado para usuario ${usuarioId}`);
+            return resultado;
+        } catch (error) {
+            console.error('[✗ BD] Error actualizando descriptor:', error.message);
+            throw error;
+        }
+    }
 }
 
 module.exports = Usuario;

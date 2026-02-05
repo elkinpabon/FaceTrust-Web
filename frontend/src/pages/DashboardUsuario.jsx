@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usuarioService, registroService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Clock, Play, Square, LogOut, User, FileText, CheckCircle, Shield } from 'lucide-react';
+import { Clock, Play, Square, LogOut, User, FileText, CheckCircle, Shield, Camera } from 'lucide-react';
 import Logo from '../components/Logo.jsx';
 import Modal2FA from '../components/Modal2FA.jsx';
+import ActualizarRostro from '../components/ActualizarRostro.jsx';
 import '../styles/dashboard.css';
 
 const DashboardUsuario = () => {
@@ -16,6 +17,7 @@ const DashboardUsuario = () => {
     const [tab, setTab] = useState('resumen');
     const [registroExitoso, setRegistroExitoso] = useState(null);
     const [mostrarModal2FA, setMostrarModal2FA] = useState(false);
+    const [mostrarActualizarRostro, setMostrarActualizarRostro] = useState(false);
 
     useEffect(() => {
         cargarDatos();
@@ -62,6 +64,12 @@ const DashboardUsuario = () => {
         navigate('/login');
     };
 
+    const handleActualizacionRostroExitosa = () => {
+        setRegistroExitoso('rostro_actualizado');
+        setTimeout(() => setRegistroExitoso(null), 3000);
+        cargarDatos();
+    };
+
     if (cargando) {
         return <div className="user-loading">
             <div className="loading-spinner"></div>
@@ -81,10 +89,14 @@ const DashboardUsuario = () => {
                         </div>
                         <div className="notification-text">
                             <p className="notification-title">
-                                {registroExitoso === 'entrada' ? '¡Entrada registrada!' : '¡Salida registrada!'}
+                                {registroExitoso === 'entrada' ? '¡Entrada registrada!' : 
+                                 registroExitoso === 'salida' ? '¡Salida registrada!' : 
+                                 '¡Rostro actualizado!'}
                             </p>
                             <p className="notification-time">
-                                {new Date().toLocaleTimeString('es-CO')}
+                                {registroExitoso === 'rostro_actualizado' 
+                                    ? 'Reconocimiento facial actualizado correctamente'
+                                    : new Date().toLocaleTimeString('es-CO')}
                             </p>
                         </div>
                     </div>
@@ -228,6 +240,28 @@ const DashboardUsuario = () => {
                         <div className="profile-card">
                             <div className="profile-header">
                                 <h3>Perfil Completo</h3>
+                                <button 
+                                    className="btn-actualizar-rostro"
+                                    onClick={() => setMostrarActualizarRostro(true)}
+                                    style={{
+                                        backgroundColor: '#0d7377',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        padding: '8px 16px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = '#0a5f63'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = '#0d7377'}
+                                >
+                                    <Camera size={16} style={{ marginRight: '6px' }} />
+                                    Actualizar Rostro
+                                </button>
                             </div>
                             <div className="profile-details">
                                 <div className="profile-group">
@@ -314,6 +348,17 @@ const DashboardUsuario = () => {
                         alert('✓ 2FA activado correctamente');
                         cargarDatos();
                     }}
+                />
+            )}
+
+            {/* Modal Actualizar Rostro */}
+            {mostrarActualizarRostro && (
+                <ActualizarRostro 
+                    isOpen={mostrarActualizarRostro}
+                    onClose={() => setMostrarActualizarRostro(false)}
+                    usuarioId={perfil?.id}
+                    nombreUsuario={`${perfil?.nombre} ${perfil?.apellido}`}
+                    onActualizacionExitosa={handleActualizacionRostroExitosa}
                 />
             )}
         </div>

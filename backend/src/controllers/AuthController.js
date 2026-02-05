@@ -652,6 +652,79 @@ class AuthController {
             return res.status(500).json({ error: 'Error verificando código' });
         }
     }
+
+    // Actualizar rostro de usuario
+    static async actualizarRostro(req, res) {
+        try {
+            const { usuarioId } = req.params;
+            const descriptorHeader = req.get('x-descriptor-facial');
+
+            if (!req.file) {
+                return res.status(400).json({ error: 'No se recibió imagen facial' });
+            }
+
+            if (!descriptorHeader) {
+                return res.status(400).json({ error: 'No se recibió descriptor facial' });
+            }
+
+            // Decodificar descriptor facial
+            const descriptorFacial = JSON.parse(decodeURIComponent(descriptorHeader));
+
+            // Validar que sea un descriptor válido
+            if (!FaceDescriptorUtils.esDescriptorValido(descriptorFacial)) {
+                return res.status(400).json({ error: 'Descriptor facial inválido' });
+            }
+
+            // Verificar que el usuario existe
+            const usuario = await Usuario.obtenerPorId(usuarioId);
+            if (!usuario) {
+                return res.status(404).json({ error: 'Usuario no encontrado' });
+            }
+
+            // VALIDAR QUE EL ROSTRO SEA ÚNICO (excluyendo al usuario actual)
+            console.log('[FACE-UPDATE] Verificando unicidad del rostro...');
+            const usuariosConDescriptores = await Usuario.obtenerTodosDescriptores();
+            
+            for (const usuarioExistente of usuariosConDescriptores) {
+                // Excluir al usuario que está actualizando
+                if (usuarioExistente.id === parseInt(usuarioId)) {
+                    continue;
+                }
+
+                if (usuarioExistente.descriptor) {
+                    const similares = FaceDescriptorUtils.sonSimilares(
+                        descriptorFacial, 
+                        usuarioExistente.descriptor,
+                        0.6 // Umbral de similitud
+                    );
+                    
+                    if (similares) {
+                        console.log(`[FACE-UPDATE] ✗ Rostro ya registrado (Usuario: ${usuarioExistente.nombre} ${usuarioExistente.apellido})`);
+                        return res.status(409).json({ 
+                            error: 'Este rostro ya está registrado por otro usuario',
+                            codigoError: 'ROSTRO_DUPLICADO'
+                        });
+                    }
+                }
+            }
+            
+            console.log('[FACE-UPDATE] ✓ Rostro único verificado');
+
+            // Actualizar imagen y descriptor en BD
+            await Usuario.actualizarImagen(usuarioId, req.file.buffer);
+            await Usuario.actualizarDescriptor(usuarioId, descriptorFacial);
+
+            console.log(`[FACE-UPDATE] ✓ Rostro actualizado para usuario ${usuarioId}`);
+
+            return res.json({ 
+                mensaje: 'Rostro actualizado correctamente',
+                actualizado: true
+            });
+        } catch (error) {
+            console.error('Error actualizando rostro:', error);
+            return res.status(500).json({ error: 'Error al actualizar rostro' });
+        }
+    }
 }
 
 module.exports = AuthController;

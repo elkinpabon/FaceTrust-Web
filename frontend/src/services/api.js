@@ -81,6 +81,17 @@ export const authService = {
     verificarDosFA: (datos) => {
         console.log('[API] verificarDosFA llamado para usuarioId:', datos.usuarioId);
         return api.post('/auth/verificar-2fa', datos);
+    },
+    actualizarRostro: (usuarioId, imagen, descriptorFacial) => {
+        const formData = new FormData();
+        formData.append('imagen', imagen, 'rostro.jpg');
+        
+        return api.put(`/auth/actualizar-rostro/${usuarioId}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+                'x-descriptor-facial': encodeURIComponent(JSON.stringify(descriptorFacial))
+            }
+        });
     }
 };
 
