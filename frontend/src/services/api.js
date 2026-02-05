@@ -82,17 +82,33 @@ export const authService = {
         console.log('[API] verificarDosFA llamado para usuarioId:', datos.usuarioId);
         return api.post('/auth/verificar-2fa', datos);
     },
-    actualizarRostro: (usuarioId, imagen, descriptorFacial, codigo2FA) => {
+    actualizarRostro: (usuarioId, imagen, descriptorFacial, codigo2FA, soloAutenticador = false) => {
         const formData = new FormData();
-        formData.append('imagen', imagen, 'rostro.jpg');
         
-        return api.put(`/auth/actualizar-rostro/${usuarioId}`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-                'x-descriptor-facial': encodeURIComponent(JSON.stringify(descriptorFacial)),
-                'x-codigo-2fa': codigo2FA || ''
-            }
-        });
+        // Si no está en modo "solo autenticador", incluir la imagen y descriptor
+        if (!soloAutenticador && imagen) {
+            formData.append('imagen', imagen, 'rostro.jpg');
+        }
+        
+        const headers = {
+            'Content-Type': 'multipart/form-data',
+            'x-codigo-2fa': codigo2FA || ''
+        };
+        
+        // Si no está en modo solo autenticador, incluir descriptor
+        if (!soloAutenticador && descriptorFacial) {
+            headers['x-descriptor-facial'] = encodeURIComponent(JSON.stringify(descriptorFacial));
+        }
+        
+        // Pasar flag al backend indicando que es "solo autenticador"
+        if (soloAutenticador) {
+            headers['x-solo-autenticador'] = 'true';
+        }
+        
+        return api.put(`/auth/actualizar-rostro/${usuarioId}`, formData, { headers });
+    },
+    obtenerDescriptorActual: (usuarioId) => {
+        return api.get(`/auth/descriptor-actual/${usuarioId}`);
     }
 };
 

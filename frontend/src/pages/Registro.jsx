@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
-import { Lightbulb, Maximize2, Smile, CheckCircle, User, AlertCircle } from 'lucide-react';
+import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
 import { authService } from '../services/api.js';
 import CedulaValidator from '../utils/CedulaValidator.js';
 import FaceScanner from '../components/FaceScanner.jsx';
@@ -50,7 +50,21 @@ const Registro = () => {
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData({ ...formData, [name]: value });
+        
+        // Validar nombre: solo letras
+        if (name === 'nombre') {
+            const filtrado = value.replace(/[0-9!@#$%^&*()_+=[\]{};':"\\|,.<>/?]/g, '');
+            setFormData({ ...formData, [name]: filtrado });
+        } 
+        // Validar apellido: solo letras
+        else if (name === 'apellido') {
+            const filtrado = value.replace(/[0-9!@#$%^&*()_+=[\]{};':"\\|,.<>/?]/g, '');
+            setFormData({ ...formData, [name]: filtrado });
+        }
+        // Para otros campos, permitir el valor normal
+        else {
+            setFormData({ ...formData, [name]: value });
+        }
         
         // Validar cédula en tiempo real
         if (name === 'cedula') {
@@ -155,6 +169,18 @@ const Registro = () => {
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
         setError('');
+        
+        // Validar que nombre solo contenga letras
+        if (!formData.nombre || !/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(formData.nombre.trim())) {
+            setError('El nombre solo puede contener letras (sin números ni caracteres especiales)');
+            return;
+        }
+
+        // Validar que apellido solo contenga letras
+        if (!formData.apellido || !/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/.test(formData.apellido.trim())) {
+            setError('El apellido solo puede contener letras (sin números ni caracteres especiales)');
+            return;
+        }
         
         // Validar cédula según políticas de Ecuador
         const validacionCedula = CedulaValidator.validar(formData.cedula);

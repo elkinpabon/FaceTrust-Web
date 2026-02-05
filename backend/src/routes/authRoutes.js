@@ -54,6 +54,9 @@ router.post('/solicitar-2fa', AuthController.solicitarDosFA);
 // Verificar código 2FA
 router.post('/verificar-2fa', AuthController.verificarDosFA);
 
+// Obtener descriptor actual del usuario (para validaciones en frontend)
+router.get('/descriptor-actual/:usuarioId', AuthController.obtenerDescriptorActual);
+
 // Actualizar rostro de usuario
 router.put('/actualizar-rostro/:usuarioId', upload.single('imagen'), AuthController.actualizarRostro);
 

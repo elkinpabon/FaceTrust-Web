@@ -659,12 +659,17 @@ class AuthController {
             const { usuarioId } = req.params;
             const descriptorHeader = req.get('x-descriptor-facial');
             const codigo2FAHeader = req.get('x-codigo-2fa');
+            const soloAutenticador = req.get('x-solo-autenticador') === 'true';
 
-            if (!req.file) {
+            // En modo soloAutenticador, la imagen es opcional
+            // Las primeras 3 veces, se valida con rostro + 2FA
+            // Después de 3 intentos fallidos, solo valida con 2FA
+            
+            if (!soloAutenticador && !req.file) {
                 return res.status(400).json({ error: 'No se recibió imagen facial' });
             }
 
-            if (!descriptorHeader) {
+            if (!soloAutenticador && !descriptorHeader) {
                 return res.status(400).json({ error: 'No se recibió descriptor facial' });
             }
 
@@ -675,11 +680,11 @@ class AuthController {
                 });
             }
 
-            // Decodificar descriptor facial
-            const descriptorFacial = JSON.parse(decodeURIComponent(descriptorHeader));
+            // Decodificar descriptor facial (puede no estar presente en modo soloAutenticador)
+            const descriptorFacial = descriptorHeader ? JSON.parse(decodeURIComponent(descriptorHeader)) : null;
 
-            // Validar que sea un descriptor válido
-            if (!FaceDescriptorUtils.esDescriptorValido(descriptorFacial)) {
+            // Validar que sea un descriptor válido (si se envió)
+            if (descriptorFacial && !FaceDescriptorUtils.esDescriptorValido(descriptorFacial)) {
                 return res.status(400).json({ error: 'Descriptor facial inválido' });
             }
 
@@ -714,10 +719,26 @@ class AuthController {
 
             console.log('[FACE-UPDATE] ✓ Código 2FA verificado correctamente');
 
+            // Si el usuario está en modo "solo autenticador" (3+ intentos fallidos)
+            // Solo validar 2FA, no requirerir cambio de rostro
+            if (soloAutenticador) {
+                console.log('[FACE-UPDATE] Modo: SOLO AUTENTICADOR (después de 3 intentos fallidos)');
+                console.log('[FACE-UPDATE] ✓ Autenticación 2FA satisfactoria - Se permite actualización sin cambio de rostro');
+                
+                return res.json({ 
+                    mensaje: 'Autenticación de dos factores exitosa. Rostro no será actualizado por razones de seguridad.',
+                    actualizado: true,
+                    soloAutenticador: true
+                });
+            }
+
             // VALIDAR QUE EL NUEVO ROSTRO SE PAREZCA AL ROSTRO ACTUAL DEL USUARIO
             // Esto previene que alguien cambie completamente el rostro de un usuario
-            if (usuario.descriptor_facial) {
+            // ✅ VALIDACIÓN CRÍTICA DE SEGURIDAD: Solo la MISMA PERSONA puede actualizar su rostro
+            if (usuario.descriptor_facial && descriptorFacial) {
                 console.log('[FACE-UPDATE] Verificando similitud con rostro actual...');
+                console.log('[FACE-UPDATE] ⚠️ VALIDACIÓN CRÍTICA: El nuevo rostro DEBE ser similar al actual');
+                
                 const descriptorActual = JSON.parse(usuario.descriptor_facial);
                 
                 const esMismaPersona = FaceDescriptorUtils.sonSimilares(
@@ -727,15 +748,16 @@ class AuthController {
                 );
 
                 if (!esMismaPersona) {
-                    console.log('[FACE-UPDATE] ✗ El nuevo rostro no coincide con el usuario actual');
+                    console.log('[FACE-UPDATE] ✗ SEGURIDAD: El nuevo rostro NO coincide - Se rechaza la actualización');
+                    console.log('[FACE-UPDATE] ✗ Distancia calculada superior al umbral de 0.45 - Posible suplantación');
                     return res.status(403).json({ 
                         error: 'El nuevo rostro no coincide suficientemente con tu rostro registrado. Por seguridad, no se permite cambiar completamente el rostro.',
                         codigoError: 'ROSTRO_NO_COINCIDE',
-                        detalle: 'Debes capturar tu propio rostro para actualizar la imagen'
+                        detalle: 'Debes capturar tu propio rostro para actualizar la imagen. Solo la misma persona puede actualizar su rostro.'
                     });
                 }
 
-                console.log('[FACE-UPDATE] ✓ Nuevo rostro coincide con usuario actual');
+                console.log('[FACE-UPDATE] ✓ SEGURIDAD: Nuevo rostro coincide con usuario actual - Pasa validación');
             }
 
             // VALIDAR QUE EL ROSTRO SEA ÚNICO (excluyendo al usuario actual)
@@ -748,7 +770,7 @@ class AuthController {
                     continue;
                 }
 
-                if (usuarioExistente.descriptor) {
+                if (usuarioExistente.descriptor && descriptorFacial) {
                     const similares = FaceDescriptorUtils.sonSimilares(
                         descriptorFacial, 
                         usuarioExistente.descriptor,
@@ -768,8 +790,13 @@ class AuthController {
             console.log('[FACE-UPDATE] ✓ Rostro único verificado');
 
             // Actualizar imagen y descriptor en BD
-            await Usuario.actualizarImagen(usuarioId, req.file.buffer);
-            await Usuario.actualizarDescriptor(usuarioId, descriptorFacial);
+            if (req.file) {
+                await Usuario.actualizarImagen(usuarioId, req.file.buffer);
+            }
+            
+            if (descriptorFacial) {
+                await Usuario.actualizarDescriptor(usuarioId, descriptorFacial);
+            }
 
             console.log(`[FACE-UPDATE] ✓ Rostro actualizado para usuario ${usuarioId}`);
 
@@ -780,6 +807,41 @@ class AuthController {
         } catch (error) {
             console.error('Error actualizando rostro:', error);
             return res.status(500).json({ error: 'Error al actualizar rostro' });
+        }
+    }
+
+    // Obtener descriptor facial actual del usuario (para validaciones en frontend)
+    static async obtenerDescriptorActual(req, res) {
+        try {
+            const { usuarioId } = req.params;
+
+            // Validar que usuarioId sea un número
+            if (!usuarioId || isNaN(usuarioId)) {
+                return res.status(400).json({ error: 'ID de usuario inválido' });
+            }
+
+            // Obtener usuario
+            const usuario = await Usuario.obtenerPorId(parseInt(usuarioId));
+
+            if (!usuario) {
+                return res.status(404).json({ error: 'Usuario no encontrado' });
+            }
+
+            // Verificar que el usuario tenga un descriptor facial guardado
+            if (!usuario.descriptor_facial) {
+                return res.status(404).json({ error: 'Usuario sin descriptor facial registrado' });
+            }
+
+            console.log(`[DESCRIPTOR] Entregando descriptor para usuario ${usuarioId}`);
+
+            // Enviar el descriptor (ya debe ser un array de 128 números)
+            return res.json({ 
+                descriptor: usuario.descriptor_facial,
+                disponible: true
+            });
+        } catch (error) {
+            console.error('Error obteniendo descriptor:', error);
+            return res.status(500).json({ error: 'Error al obtener descriptor' });
         }
     }
 }

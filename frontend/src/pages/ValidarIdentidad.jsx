@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
+import { Lock, CheckCircle, Camera } from 'lucide-react';
 import { authService } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import FaceScanner from '../components/FaceScanner.jsx';
@@ -28,6 +29,13 @@ const ValidarIdentidad = () => {
     }, []);
 
     const handleCapturarRostro = async (blob) => {
+        // Si ya llegó a 3 intentos fallidos, no permitir más escaneos
+        if (intentosFacial >= MAX_INTENTOS_FACIAL) {
+            setEstado('error');
+            setMensaje('❌ Límite de intentos de escaneo facial excedido. Por favor, usa Google Authenticator para continuar.');
+            return;
+        }
+
         setEstado('validando');
         setMensaje('Validando tu identidad...');
         const nuevoIntento = intentosFacial + 1;
@@ -75,7 +83,13 @@ const ValidarIdentidad = () => {
                     }
 
                     setEstado('error');
-                    setMensaje(`Rostro no reconocido. Intenta de nuevo (Intento ${nuevoIntento}/${MAX_INTENTOS_FACIAL})`);
+                    
+                    // Si es el último intento, indicar que debe usar 2FA
+                    if (nuevoIntento >= MAX_INTENTOS_FACIAL) {
+                        setMensaje(`Intento ${nuevoIntento}/${MAX_INTENTOS_FACIAL} fallido. Límite excedido. Por favor, usa Google Authenticator para continuar.`);
+                    } else {
+                        setMensaje(`Rostro no reconocido. Intento ${nuevoIntento}/${MAX_INTENTOS_FACIAL}. Te quedan ${MAX_INTENTOS_FACIAL - nuevoIntento} intento(s).`);
+                    }
                     return;
                 }
                 
@@ -230,6 +244,12 @@ const ValidarIdentidad = () => {
                             </div>
                             <h2>Verificación Facial</h2>
                             <p className="auth-subtitle">Confirma tu identidad para continuar</p>
+                            {intentosFacial > 0 && intentosFacial <= MAX_INTENTOS_FACIAL && (
+                                <p style={{ color: '#f59e0b', fontSize: '14px', margin: '10px 0 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    <Camera size={16} />
+                                    Intentos: {intentosFacial}/{MAX_INTENTOS_FACIAL}
+                                </p>
+                            )}
                         </div>
 
                         {estado === 'validando' ? (
@@ -239,6 +259,9 @@ const ValidarIdentidad = () => {
                             </div>
                         ) : estado === 'ingresar2fa' ? (
                             <div className="form-container">
+                                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+                                    <Lock size={48} color="#0d7377" />
+                                </div>
                                 <h3 style={{ marginTop: 0, marginBottom: '20px', textAlign: 'center' }}>Ingresa tu código 2FA</h3>
                                 <p style={{ textAlign: 'center', color: '#666', marginBottom: '20px' }}>
                                     {datosUsuario?.usuario?.nombre}, por favor ingresa el código de 6 dígitos de tu autenticador
@@ -293,7 +316,9 @@ const ValidarIdentidad = () => {
                             </div>
                         ) : estado === 'exito' ? (
                             <div className="success-modal">
-                                <div className="success-icon">✓</div>
+                                <div className="success-icon" style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                                    <CheckCircle size={48} color="#22c55e" />
+                                </div>
                                 <h2>Bienvenido</h2>
                                 <p className="welcome-name">{datosUsuario?.usuario?.nombre}</p>
                                 <p className="success-message">Tu identidad ha sido verificada correctamente</p>
@@ -303,12 +328,14 @@ const ValidarIdentidad = () => {
                             <div className="error-message-large">
                                 <p>{mensaje}</p>
                                 <div className="button-group" style={{ display: 'flex', gap: '10px', flexDirection: 'column' }}>
-                                    <button 
-                                        onClick={() => setEstado('escaneando')}
-                                        className="auth-button"
-                                    >
-                                        Reintentar Escaneo
-                                    </button>
+                                    {intentosFacial < MAX_INTENTOS_FACIAL && (
+                                        <button 
+                                            onClick={() => setEstado('escaneando')}
+                                            className="auth-button"
+                                        >
+                                            Reintentar Escaneo
+                                        </button>
+                                    )}
                                     <button 
                                         onClick={() => {
                                             setEstado('ingresar2fa');
@@ -321,7 +348,7 @@ const ValidarIdentidad = () => {
                                             border: '1px solid #888'
                                         }}
                                     >
-                                        Usar Código 2FA
+                                        {intentosFacial >= MAX_INTENTOS_FACIAL ? 'Usar Google Authenticator (Obligatorio)' : 'Usar Código 2FA'}
                                     </button>
                                 </div>
                             </div>
