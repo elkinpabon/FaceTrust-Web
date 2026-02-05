@@ -6,6 +6,7 @@ const xss = require('xss');
 const LoginAttempts = require('../utils/LoginAttempts');
 const TwoFactorService = require('../services/TwoFactorService');
 const FaceDescriptorUtils = require('../utils/FaceDescriptorUtils');
+const CedulaValidator = require('../utils/CedulaValidator');
 
 class AuthController {
     // Registro
@@ -60,9 +61,10 @@ class AuthController {
                 return res.status(400).json({ error: mensajeError });
             }
 
-            // Validar cédula (números solamente)
-            if (!/^\d{6,12}$/.test(cedulaSanitizado)) {
-                return res.status(400).json({ error: 'Cédula inválida (6-12 dígitos)' });
+            // Validar cédula según políticas de Ecuador
+            const validacionCedula = CedulaValidator.validar(cedulaSanitizado);
+            if (!validacionCedula.valida) {
+                return res.status(400).json({ error: validacionCedula.mensaje });
             }
 
             // Validar nombre (solo letras, espacios y acentos, mínimo 2)
@@ -70,9 +72,9 @@ class AuthController {
                 return res.status(400).json({ error: 'Nombre inválido (mínimo 2 caracteres)' });
             }
 
-            // Validar teléfono si se proporciona
-            if (telefono && !/^\d{7,15}$/.test(telefono.replace(/\D/g, ''))) {
-                return res.status(400).json({ error: 'Teléfono inválido' });
+            // Validar teléfono (10 dígitos exactos, solo números - Ecuador)
+            if (telefono && !/^\d{10}$/.test(telefono.replace(/\D/g, ''))) {
+                return res.status(400).json({ error: 'Teléfono inválido (debe ser 10 dígitos Ecuador)' });
             }
 
             // Verificar si correo existe
@@ -284,6 +286,12 @@ class AuthController {
             const cedulaSanitizado = xss(cedula.trim());
             const correoSanitizado = xss(correo.trim().toLowerCase());
 
+            // Validar cédula según políticas de Ecuador
+            const validacionCedula = CedulaValidator.validar(cedulaSanitizado);
+            if (!validacionCedula.valida) {
+                return res.status(400).json({ error: validacionCedula.mensaje });
+            }
+
             // Doble validación de email único
             const existe = await Usuario.existeCorreo(correoSanitizado);
             if (existe) {
@@ -354,6 +362,12 @@ class AuthController {
             const apellidoSanitizado = xss(apellido.trim());
             const cedulaSanitizado = xss(cedula.trim());
             const correoSanitizado = xss(correo.trim().toLowerCase());
+
+            // Validar cédula según políticas de Ecuador
+            const validacionCedula = CedulaValidator.validar(cedulaSanitizado);
+            if (!validacionCedula.valida) {
+                return res.status(400).json({ error: validacionCedula.mensaje });
+            }
 
             // Crear usuario AHORA
             const resultado = await Usuario.crear({

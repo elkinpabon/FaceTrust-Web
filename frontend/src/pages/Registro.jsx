@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
-import { Lightbulb, Maximize2, Smile, CheckCircle, User } from 'lucide-react';
+import { Lightbulb, Maximize2, Smile, CheckCircle, User, AlertCircle } from 'lucide-react';
 import { authService } from '../services/api.js';
+import CedulaValidator from '../utils/CedulaValidator.js';
 import FaceScanner from '../components/FaceScanner.jsx';
 import Modal2FA from '../components/Modal2FA.jsx';
 import ModalFeedback from '../components/ModalFeedback.jsx';
@@ -29,6 +30,12 @@ const Registro = () => {
         numero: false,
         especial: false
     });
+    const [validacionCedula, setValidacionCedula] = useState({
+        valida: false,
+        mensaje: '',
+        mostrar: false,
+        tipo: 'neutral' // 'neutral', 'error', 'success'
+    });
     const navigate = useNavigate();
 
     const [formData, setFormData] = useState({
@@ -44,6 +51,33 @@ const Registro = () => {
     const handleInputChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+        
+        // Validar cédula en tiempo real
+        if (name === 'cedula') {
+            if (value.length === 10) {
+                const validacion = CedulaValidator.validar(value);
+                setValidacionCedula({
+                    valida: validacion.valida,
+                    mensaje: validacion.mensaje,
+                    mostrar: true,
+                    tipo: validacion.valida ? 'success' : 'error'
+                });
+            } else if (value.length > 0) {
+                setValidacionCedula({
+                    valida: false,
+                    mensaje: `${value.length}/10 dígitos`,
+                    mostrar: true,
+                    tipo: 'neutral'
+                });
+            } else {
+                setValidacionCedula({
+                    valida: false,
+                    mensaje: '',
+                    mostrar: false,
+                    tipo: 'neutral'
+                });
+            }
+        }
         
         // Validar contraseña en tiempo real
         if (name === 'contraseña') {
@@ -121,6 +155,19 @@ const Registro = () => {
     const handleRegistroPaso1 = async (e) => {
         e.preventDefault();
         setError('');
+        
+        // Validar cédula según políticas de Ecuador
+        const validacionCedula = CedulaValidator.validar(formData.cedula);
+        if (!validacionCedula.valida) {
+            setError(validacionCedula.mensaje);
+            return;
+        }
+
+        // Validar teléfono (10 dígitos exactos - Ecuador)
+        if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
+            setError('Teléfono inválido (debe ser 10 dígitos Ecuador)');
+            return;
+        }
         
         // Validar contraseña antes de enviar
         const contraseña = formData.contraseña;
@@ -361,13 +408,32 @@ const Registro = () => {
                                     type="text"
                                     name="cedula"
                                     value={formData.cedula}
-                                    onChange={handleInputChange}
-                                    placeholder="Tu número de cédula"
+                                    onChange={(e) => {
+                                        // Solo permitir números
+                                        const valor = e.target.value.replace(/\D/g, '');
+                                        handleInputChange({ target: { name: 'cedula', value: valor } });
+                                    }}
+                                    placeholder="Ej: 1234567890"
+                                    maxLength="10"
                                     required
                                     className="form-input"
                                 />
                                 <span className="input-icon">#</span>
                             </div>
+                            
+                            {/* Validación de cédula en tiempo real */}
+                            {validacionCedula.mostrar && (
+                                <p className={`cedula-validation-text ${
+                                    validacionCedula.tipo === 'success' ? 'valid-text' : 
+                                    validacionCedula.tipo === 'error' ? 'error-text' : 
+                                    'neutral-text'
+                                }`}>
+                                    {validacionCedula.tipo === 'success' ? '✓ ' : 
+                                     validacionCedula.tipo === 'error' ? '✗ ' : 
+                                     ''}
+                                    {validacionCedula.mensaje}
+                                </p>
+                            )}
                         </div>
 
                         <div className="form-group">
@@ -451,14 +517,19 @@ const Registro = () => {
 
                         <div className="form-row">
                             <div className="form-group">
-                                <label>Teléfono</label>
+                                <label>Teléfono (10 dígitos)</label>
                                 <div className="input-wrapper">
                                     <input
                                         type="tel"
                                         name="telefono"
                                         value={formData.telefono}
-                                        placeholder="Tu teléfono"
-                                        onChange={handleInputChange}
+                                        placeholder="Ej: 0987654321"
+                                        maxLength="10"
+                                        onChange={(e) => {
+                                            // Solo permitir números
+                                            const valor = e.target.value.replace(/\D/g, '');
+                                            handleInputChange({ target: { name: 'telefono', value: valor } });
+                                        }}
                                         className="form-input"
                                     />
                                     <span className="input-icon">☎</span>
